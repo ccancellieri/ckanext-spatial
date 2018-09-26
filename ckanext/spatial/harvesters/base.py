@@ -487,6 +487,7 @@ class SpatialHarvester(HarvesterBase):
             if content:
                 harvest_object.content = content
             else:
+                log.debug('original_document: %s', original_document)
                 self._save_object_error('Transformation to ISO failed', harvest_object, 'Import')
                 return False
         else:
@@ -785,6 +786,7 @@ class SpatialHarvester(HarvesterBase):
         [1] http://github.com/kennethreitz/requests/blob/63243b1e3b435c7736acf1e51c0f6fa6666d861d/requests/models.py#L811
 
         '''
+        log.debug('URL: %s',url)
         url = url.replace(' ', '%20')
         response = requests.get(url, timeout=10)
 

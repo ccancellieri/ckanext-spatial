@@ -4,6 +4,7 @@ from urlparse import urljoin
 import dateutil.parser
 import pyparsing as parse
 import requests
+from HTMLParser import HTMLParser
 from sqlalchemy.orm import aliased
 from sqlalchemy.exc import DataError
 
@@ -221,10 +222,12 @@ class WAFHarvester(SpatialHarvester, SingletonPlugin):
         return True
 
 
-apache  = parse.SkipTo(parse.CaselessLiteral("<a href="), include=True).suppress() \
+apache  = parse.SkipTo(parse.CaselessLiteral("<a "), include=True).suppress() \
+        + parse.SkipTo(parse.CaselessLiteral('href='), include=True).suppress() \
         + parse.quotedString.setParseAction(parse.removeQuotes).setResultsName('url') \
         + parse.SkipTo("</a>", include=True).suppress() \
         + parse.Optional(parse.Literal('</td><td align="right">')).suppress() \
+        + parse.Optional(parse.Literal('</td><td class="R">')).suppress() \
         + parse.Optional(parse.Combine(
             parse.Word(parse.alphanums+'-') +
             parse.Word(parse.alphanums+':')
@@ -252,6 +255,8 @@ scrapers = {'apache': parse.OneOrMore(parse.Group(apache)),
             'iis': parse.OneOrMore(parse.Group(iis))}
 
 def _get_scraper(server):
+
+    log.debug('sever: %s', server)
     if not server or 'apache' in server.lower():
         return 'apache'
     if server == 'Microsoft-IIS/7.5':
@@ -276,6 +281,12 @@ def _extract_waf(content, base_url, scraper, results = None, depth=0):
 
     for record in parsed:
         url = record.url
+
+	if '&#' in url:
+	    h = HTMLParser()
+            url=h.unescape(url)
+            record.url = url
+
         if not url:
             continue
         if url.startswith('_'):
