@@ -185,7 +185,19 @@ class SpatialQuery(p.SingletonPlugin):
                 return pkg_dict
 
             if self.search_backend == 'solr':
-                # Only bbox supported for this backend
+                #try to convert points to bbox
+                if (geometry['type'] == 'Point'):
+                    geom = shapely.geometry.shape(geometry)
+                    minx,miny,maxx,maxy = geom.bounds
+		    # offset points by 1 meter
+                    minx = minx - 0.00001
+                    miny = miny - 0.00001
+                    maxx = maxx + 0.00001
+                    maxy = maxy + 0.00001
+                    poly = shapely.geometry.Polygon([(minx,miny), (minx,maxy), (maxx,maxy), (maxx,miny), (minx,miny)]) # generate polygon from bounds
+                    geometry = shapely.geometry.mapping(poly) # conver to GeoJSON like dirctionary
+
+               # Only bbox supported for this backend
                 if not (geometry['type'] == 'Polygon'
                    and len(geometry['coordinates']) == 1
                    and len(geometry['coordinates'][0]) == 5):
