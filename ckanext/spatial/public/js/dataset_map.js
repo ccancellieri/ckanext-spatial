@@ -7,7 +7,7 @@ this.ckan.module('dataset-map', function (jQuery, _) {
       },
       styles: {
         point:{
-          iconUrl: '/img/marker.png',
+          iconUrl: 'img/marker.png',
           iconSize: [14, 25],
           iconAnchor: [7, 25]
         },
@@ -24,7 +24,6 @@ this.ckan.module('dataset-map', function (jQuery, _) {
     initialize: function () {
 
       this.extent = this.el.data('extent');
-
       // fix bbox when w-long is positive while e-long is negative.
       // assuming coordinate sequence is west to east (left to right)
       if (this.extent.type == 'Polygon'
@@ -46,6 +45,9 @@ this.ckan.module('dataset-map', function (jQuery, _) {
 
       // hack to make leaflet use a particular location to look for images
       L.Icon.Default.imagePath = this.options.site_url + 'js/vendor/leaflet/images';
+
+      // hack to support site locations other then root folder
+      this.options.styles.point.iconUrl = this.options.site_url + this.options.styles.point.iconUrl
 
       jQuery.proxyAll(this, /_on/);
       this.el.ready(this._onReady);
