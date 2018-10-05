@@ -6,6 +6,22 @@ from ckan.lib import helpers as h
 
 log = logging.getLogger(__name__)
 
+def spatial_widget_expands():
+    '''Return the value of the spatial_widget_expands config setting.
+
+    To disable expanding of the spatial widget when drawing search box, add this line to the
+    [app:main] section of your CKAN config file::
+
+      ckan.spatial.spatial_widget_expands = False
+
+    Returns ``True`` by default, if the setting is not in the config file.
+
+    :rtype: bool
+
+    '''
+    value = config.get('ckan.spatial.spatial_widget_expands', True)
+    value = p.toolkit.asbool(value)
+    return value
 
 def get_reference_date(date_str):
     '''

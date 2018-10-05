@@ -110,7 +110,7 @@ this.ckan.module('spatial-query', function ($, _) {
 
       // OK add the expander
       $('a.leaflet-draw-draw-rectangle', module.el).on('click', function(e) {
-        if (!is_exanded) {
+        if (!is_exanded && this.options.spatial_widget_expands) {
           $('body').addClass('dataset-map-expanded');
           if (should_zoom && !extentLayer) {
             map.zoomIn();
@@ -157,7 +157,15 @@ this.ckan.module('spatial-query', function ($, _) {
         extentLayer = e.layer;
         $('#ext_bbox').val(extentLayer.getBounds().toBBoxString());
         map.addLayer(extentLayer);
-        $('.apply', buttons).removeClass('disabled').addClass('btn-primary');
+	if (this.options.spatial_widget_expands) {
+          $('.apply', buttons).removeClass('disabled').addClass('btn-primary');
+        } else {
+          // Eugh, hacky hack. but submitts the query as there is no apply button
+          setTimeout(function() {
+            map.fitBounds(extentLayer.getBounds());
+            submitForm();
+          }, 200);
+        }
       });
 
       // Record the current map view so we can replicate it after submitting

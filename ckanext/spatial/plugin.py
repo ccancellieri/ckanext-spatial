@@ -9,7 +9,6 @@ from ckan import plugins as p
 
 from ckan.lib.helpers import json
 
-
 def check_geoalchemy_requirement():
     '''Checks if a suitable geoalchemy version installed
 
@@ -148,6 +147,7 @@ class SpatialMetadata(p.SingletonPlugin):
                 'get_reference_date' : spatial_helpers.get_reference_date,
                 'get_responsible_party': spatial_helpers.get_responsible_party,
                 'get_common_map_config' : spatial_helpers.get_common_map_config,
+		'spatial_widget_expands': spatial_helpers.spatial_widget_expands,
                 }
 
 class SpatialQuery(p.SingletonPlugin):
