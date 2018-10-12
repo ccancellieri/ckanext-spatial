@@ -1,5 +1,5 @@
 import ckan.plugins as p
-# from ckan.plugins.core import SingletonPlugin
+from ckan.plugins.core import SingletonPlugin
 from ckanext.spatial.interfaces import ISpatialHarvester
 from ckanext.spatial.harvesters.csw import CSWHarvester
 
@@ -46,21 +46,22 @@ for element in ISODocument.elements:
         element.search_paths.append(newpath)
         log.info("Added old URI for gml to %s", element.name)
 
-class GeoNetworkHarvester(CSWHarvester, p.SingletonPlugin):
+class GeoNetworkHarvester(CSWHarvester, SingletonPlugin):
 
-    p.implements(ISpatialHarvester, inherit=True)
+    #p.implements(ISpatialHarvester, inherit=True)
 
     def info(self):
         return {
             'name': 'geonetwork',
             'title': 'CSW server (GeoNetwork)',
-            'description': 'Harvests GeoNetwork instances via CSW',
-            'form_config_interface': 'Text'
+            'description': 'Harvests GeoNetwork instances via CSW'
         }
 
-    def get_package_dict(self, context, data_dict):
-
-        package_dict = super(GeoNetworkHarvester, self).get_package_dict(iso_values, harvest_object)
+    def get_package_dict(self, iso_values, harvest_object):
+	#package_dict = data_dict['package_dict']
+        #iso_values = data_dict['iso_values']
+        
+	package_dict = super(GeoNetworkHarvester, self).get_package_dict(iso_values, harvest_object)
 
         # Add default_tags from config
         # default_tags = self.source_config.get('default_tags', [])
@@ -149,11 +150,11 @@ class GeoNetworkHarvester(CSWHarvester, p.SingletonPlugin):
             cats = []
 
             harvest_iso_categories = self.source_config.get('harvest_iso_categories')
-            if harvest_iso_categories == "True":
+            if harvest_iso_categories == "True" or (harvest_iso_categories and harvest_iso_categories != "False"):
                 # Handle groups mapping using metadata TopicCategory
                 cats = values["topic-category"]
                 log.info(':::::::::::::-TOPIC-CATEGORY-::::::::::::: %r ', cats)
-            else:
+            #else:
                 # Handle groups mapping using GeoNetwork categories
                 #version = self.source_config.get('version')
                 #client = GeoNetworkClient(gn_localized_url, version)

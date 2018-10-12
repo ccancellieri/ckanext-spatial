@@ -412,7 +412,7 @@ class SpatialHarvester(HarvesterBase):
                              harvest_source_title=harvest_object.job.source.title,
                              harvest_job_id=harvest_object.job.id,
                              harvest_object_id=harvest_object.id,
-                             dataset_id=package_dict['id'])
+			     dataset_id=harvest_object.package_id)
                  extras[key] = value
 
         extras_as_dict = []
