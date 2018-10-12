@@ -203,7 +203,7 @@ class SpatialHarvester(HarvesterBase):
         :returns: A dataset dictionary (package_dict)
         :rtype: dict
         '''
-        
+
         tags = []
 
         if 'tags' in iso_values:
@@ -411,7 +411,8 @@ class SpatialHarvester(HarvesterBase):
                              harvest_source_url=harvest_object.job.source.url.strip('/'),
                              harvest_source_title=harvest_object.job.source.title,
                              harvest_job_id=harvest_object.job.id,
-                             harvest_object_id=harvest_object.id)
+                             harvest_object_id=harvest_object.id,
+                             dataset_id=package_dict['id'])
                  extras[key] = value
 
         extras_as_dict = []
