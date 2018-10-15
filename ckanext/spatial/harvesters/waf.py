@@ -9,6 +9,7 @@ from sqlalchemy.orm import aliased
 from sqlalchemy.exc import DataError
 
 from ckan import model
+from ckan.logic import ValidationError, NotFound, get_action
 
 from ckan.plugins.core import SingletonPlugin, implements
 
@@ -39,7 +40,7 @@ class WAFHarvester(SpatialHarvester, SingletonPlugin):
 
     def get_package_dict(self, iso_values, harvest_object):
 
-        package_dict = super(GeoNetworkHarvester, self).get_package_dict(iso_values, harvest_object)
+        package_dict = super(WAFHarvester, self).get_package_dict(iso_values, harvest_object)
 
         # Add other elements from ISO metadata
         # time_extents = self.infer_timeinstants(iso_values)
@@ -60,7 +61,7 @@ class WAFHarvester(SpatialHarvester, SingletonPlugin):
 
     def handle_groups(self, harvest_object, group_mapping, values):
         try:
-            context = {'model': model, 'session': Session, 'user': 'harvest'}
+            context = {'model': model, 'session': model.Session, 'user': 'harvest'}
             validated_groups = []
             cats = []
 
@@ -90,6 +91,7 @@ class WAFHarvester(SpatialHarvester, SingletonPlugin):
                         log.warning('Group %s from category %s is not available' % (groupname, cat))
         except Exception, e:
             log.warning('Error handling groups for metadata %s' % harvest_object.guid)
+	    log.error('%s',e)
 
         return validated_groups
 
