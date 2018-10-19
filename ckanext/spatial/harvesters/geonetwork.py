@@ -54,7 +54,8 @@ class GeoNetworkHarvester(CSWHarvester, SingletonPlugin):
         return {
             'name': 'geonetwork',
             'title': 'CSW server (GeoNetwork)',
-            'description': 'Harvests GeoNetwork instances via CSW'
+            'description': 'Harvests GeoNetwork instances via CSW',
+            'form_config_interface': 'Text'
         }
 
     def get_package_dict(self, iso_values, harvest_object):
