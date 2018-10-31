@@ -122,6 +122,68 @@ class SpatialHarvester(HarvesterBase):
     {"type": "Polygon", "coordinates": [[[$xmin, $ymin], [$xmax, $ymin], [$xmax, $ymax], [$xmin, $ymax], [$xmin, $ymin]]]}
     ''')
 
+
+    # helper functions copied from ckan harvester
+
+    api_version = 2
+    action_api_version = 3
+
+    def _get_action_api_offset(self):
+        return '/api/%d/action' % self.action_api_version
+
+    def _get_search_api_offset(self):
+        return '%s/package_search' % self._get_action_api_offset()
+
+    def _get_content(self, url):
+        http_request = urllib2.Request(url=url)
+
+        api_key = self.config.get('api_key')
+        if api_key:
+            http_request.add_header('Authorization', api_key)
+
+        try:
+            http_response = urllib2.urlopen(http_request)
+        except urllib2.HTTPError, e:
+            if e.getcode() == 404:
+                raise ContentNotFoundError('HTTP error: %s' % e.code)
+            else:
+                raise ContentFetchError('HTTP error: %s' % e.code)
+        except urllib2.URLError, e:
+            raise ContentFetchError('URL error: %s' % e.reason)
+        except httplib.HTTPException, e:
+            raise ContentFetchError('HTTP Exception: %s' % e)
+        except socket.error, e:
+            raise ContentFetchError('HTTP socket error: %s' % e)
+        except Exception, e:
+            raise ContentFetchError('HTTP general exception: %s' % e)
+        return http_response.read()
+
+    def _get_group(self, base_url, group):
+        url = base_url + self._get_action_api_offset() + '/group_show?id=' + \
+            group['id']
+        try:
+            content = self._get_content(url)
+            data = json.loads(content)
+            if self.action_api_version == 3:
+                return data.pop('result')
+            return data
+        except (ContentFetchError, ValueError):
+            log.debug('Could not fetch/decode remote group')
+            raise RemoteResourceError('Could not fetch/decode remote group')
+
+    def _get_organization(self, base_url, org_name):
+        url = base_url + self._get_action_api_offset() + \
+            '/organization_show?id=' + org_name
+        try:
+            content = self._get_content(url)
+            content_dict = json.loads(content)
+            return content_dict['result']
+        except (ContentFetchError, ValueError, KeyError):
+            log.debug('Could not fetch/decode remote group')
+            raise RemoteResourceError(
+                'Could not fetch/decode remote organization')
+
+
     ## IHarvester
 
     def validate_config(self, source_config):
@@ -226,9 +288,70 @@ class SpatialHarvester(HarvesterBase):
 
         # We need to get the owner organization (if any) from the harvest
         # source dataset
-        source_dataset = model.Package.get(harvest_object.source.id)
-        if source_dataset.owner_org:
-            package_dict['owner_org'] = source_dataset.owner_org
+        #source_dataset = model.Package.get(harvest_object.source.id)
+        #if source_dataset.owner_org:
+        #    package_dict['owner_org'] = source_dataset.owner_org
+
+        #source_dataset = model.Package.get(harvest_object.source.id)
+        #local_org = source_dataset.get('owner_org')
+        base_context = {'model': model, 'session': model.Session, 'user': self._get_user_name()}
+        source_dataset = logic.get_action('package_show')(base_context.copy(), {'id': harvest_object.source.id})
+        local_org = source_dataset.get('owner_org')
+
+        log.debug("LOCAL_ORG: %s" ,local_org )
+        remote_orgs = self.source_config.get('remote_orgs', None)
+        log.debug("REMOTE_ORGS: %s" ,remote_orgs )
+
+        ## get mapping from config
+        organization_mapping = self.source_config.get('organization_mapping', {})
+        log.info("organization_mapping: %s",organization_mapping)
+
+        if not remote_orgs in ('only_local', 'create'):
+            # Assign dataset to the source organization
+            package_dict['owner_org'] = local_org
+        else:
+            if not 'owner_org' in package_dict:
+                package_dict['owner_org'] = None
+
+            # check if remote org exist locally, otherwise remove
+            validated_org = None
+            resp_org = None
+            meta_org = None
+
+            if iso_values['responsible-organisation']:
+                resp_org = iso_values.get('responsible-organisation')[0].get('organisation-name','')
+            if iso_values['metadata-point-of-contact']:
+                meta_org = iso_values.get('responsible-organisation')[0].get('organisation-name','')
+
+            log.info("Found remote orginization options of: '%s', '%s', '%s'",package_dict['owner_org'], resp_org, meta_org)
+            remote_org = package_dict['owner_org'] or resp_org or meta_org
+            log.info("Using '%s' for remote orginization" ,remote_org )
+
+            if organization_mapping:
+                remote_org_name = organization_mapping.get(remote_org, remote_org)
+                remote_org = remote_org_name or remote_org or None
+
+            if remote_org:
+
+                remote_org_clean = re.sub(r"[^\w_-]+", "-",remote_org).lower()
+                remote_org_clean = remote_org_clean.replace("--","-")
+                remote_org_clean = remote_org_clean[:100]
+                try:
+                    data_dict = {'id': remote_org_clean}
+                    org = logic.get_action('organization_show')(base_context.copy(), data_dict)
+                    validated_org = org['id']
+                    log.info("Found organization %s" , remote_org_clean)
+                except logic.NotFound, e:
+                    log.info('Organization %s is not available', remote_org)
+                    if remote_orgs == 'create':
+                        try:
+                            org = logic.get_action('organization_create')(base_context.copy(), {'name': remote_org_clean, 'title': remote_org})
+                            log.info('Organization %s has been newly created', remote_org)
+                            validated_org = org['id']
+                        except (e):
+                            log.error('Could not create org %s : %e', remote_org, e)
+
+            package_dict['owner_org'] = validated_org or local_org
 
         # Package name
         package = harvest_object.package
@@ -832,3 +955,16 @@ class SpatialHarvester(HarvesterBase):
                 self._save_object_error(error[0], harvest_object, 'Validation', line=error[1])
 
         return valid, profile, errors
+
+class ContentFetchError(Exception):
+    pass
+
+class ContentNotFoundError(ContentFetchError):
+    pass
+
+class RemoteResourceError(Exception):
+    pass
+
+
+class SearchError(Exception):
+    pass
