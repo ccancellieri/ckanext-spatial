@@ -286,38 +286,34 @@ class SpatialHarvester(HarvesterBase):
             'resources': [],
         }
 
-        # We need to get the owner organization (if any) from the harvest
-        # source dataset
-        #source_dataset = model.Package.get(harvest_object.source.id)
-        #if source_dataset.owner_org:
-        #    package_dict['owner_org'] = source_dataset.owner_org
+        # Get owner organization (if any) from the harvest source dataset
 
-        #source_dataset = model.Package.get(harvest_object.source.id)
-        #local_org = source_dataset.get('owner_org')
         base_context = {'model': model, 'session': model.Session, 'user': self._get_user_name()}
         source_dataset = logic.get_action('package_show')(base_context.copy(), {'id': harvest_object.source.id})
+        # Save local orginization from harvest object for later. If we cant use
+        # the remote orginization this will be the fall back
         local_org = source_dataset.get('owner_org')
 
         log.debug("LOCAL_ORG: %s" ,local_org )
         remote_orgs = self.source_config.get('remote_orgs', None)
         log.debug("REMOTE_ORGS: %s" ,remote_orgs )
 
-        ## get mapping from config
+        ## get mapping from config, if it exists
         organization_mapping = self.source_config.get('organization_mapping', {})
         log.info("organization_mapping: %s",organization_mapping)
 
         if not remote_orgs in ('only_local', 'create'):
-            # Assign dataset to the source organization
+            # Assign dataset to the local harvest organization
             package_dict['owner_org'] = local_org
         else:
             if not 'owner_org' in package_dict:
                 package_dict['owner_org'] = None
 
-            # check if remote org exist locally, otherwise remove
             validated_org = None
             resp_org = None
             meta_org = None
 
+            # populate orginization options from iso metadata
             if iso_values['responsible-organisation']:
                 resp_org = iso_values.get('responsible-organisation')[0].get('organisation-name','')
             if iso_values['metadata-point-of-contact']:
@@ -327,12 +323,13 @@ class SpatialHarvester(HarvesterBase):
             remote_org = package_dict['owner_org'] or resp_org or meta_org
             log.info("Using '%s' for remote orginization" ,remote_org )
 
+            # Map remote organization to local ones
             if organization_mapping:
                 remote_org_name = organization_mapping.get(remote_org, remote_org)
                 remote_org = remote_org_name or remote_org or None
 
             if remote_org:
-
+                # ckan supports only alphanumeric with underscores and dashes in org names
                 remote_org_clean = re.sub(r"[^\w_-]+", "-",remote_org).lower()
                 remote_org_clean = remote_org_clean.replace("--","-")
                 remote_org_clean = remote_org_clean[:100]
