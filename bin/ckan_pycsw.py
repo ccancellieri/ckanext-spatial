@@ -121,7 +121,7 @@ def load(pycsw_config, ckan_url):
 
     for ckan_id in new:
         ckan_info = gathered_records[ckan_id]
-        record = get_record(context, repo, ckan_url, ckan_id, ckan_info)
+        record = get_record(context, repo, ckan_url, ckan_id, ckan_info, pycsw_config)
         if not record:
             log.info('Skipped record %s' % ckan_id)
             continue
@@ -133,7 +133,7 @@ def load(pycsw_config, ckan_url):
 
     for ckan_id in changed:
         ckan_info = gathered_records[ckan_id]
-        record = get_record(context, repo, ckan_url, ckan_id, ckan_info)
+        record = get_record(context, repo, ckan_url, ckan_id, ckan_info, pycsw_config)
         if not record:
             continue
         update_dict = dict([(getattr(repo.dataset, key),
@@ -164,9 +164,15 @@ def clear(pycsw_config):
     log.info('Table cleared')
 
 
-def get_record(context, repo, ckan_url, ckan_id, ckan_info):
-    query = ckan_url + 'harvest/object/%s'
-    url = query % ckan_info['harvest_object_id']
+def get_record(context, repo, ckan_url, ckan_id, ckan_info, pycsw_config):
+    harvest_type = pycsw_config.get('server', 'harvest_type')
+    if harvest_type == 'package_converter':
+        query = ckan_url + 'dataset/%s/export/iso19139.xml'
+        url = query % ckan_id
+    else:
+        query = ckan_url + 'harvest/object/%s'
+        url = query % ckan_info['harvest_object_id']
+
     response = requests.get(url)
 
     if ckan_info['source'] == 'arcgis':
