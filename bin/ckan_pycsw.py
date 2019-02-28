@@ -167,7 +167,7 @@ def clear(pycsw_config):
 def get_record(context, repo, ckan_url, ckan_id, ckan_info, pycsw_config):
     harvest_type = pycsw_config.get('server', 'harvest_type')
     if harvest_type == 'package_converter':
-        query = ckan_url + 'dataset/%s/export/iso19139.xml'
+        query = ckan_url + 'dataset/%s/export/cioos.xml'
         url = query % ckan_id
     else:
         query = ckan_url + 'harvest/object/%s'
