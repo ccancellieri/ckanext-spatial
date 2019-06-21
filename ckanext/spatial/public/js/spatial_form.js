@@ -83,9 +83,9 @@ this.ckan.module('spatial-form', function (jQuery, _) {
 
     initialize: function () {
 
-      this.input = $('#' + this.el.data('input_id'))[0];
+      this.ids = this.el.data('input_ids');
       this.extent = this.el.data('extent');
-      this.map_id = 'dataset-map-container'; //-' + this.input;
+      this.map_id = 'dataset-map-container';
 
       jQuery.proxyAll(this, /_on/);
       this.el.ready(this._onReady);
@@ -98,6 +98,7 @@ this.ckan.module('spatial-form', function (jQuery, _) {
         var map, backgroundLayer, oldExtent, drawnItems, ckanIcon;
         var ckanIcon = L.Icon.extend({options: this.options.styles.point});
 
+        var _self = this; // used in event handlers as this points to dom object in that case
 
         /* Initialise basic map */
         map = ckan.commonLeafletMap(
@@ -195,42 +196,39 @@ this.ckan.module('spatial-form', function (jQuery, _) {
             var polyarray = [];
             $.each(gj, function(index, value){ polyarray.push(value.geometry.coordinates); });
             mp = {"type": "MultiPolygon", "coordinates": polyarray};
-            // TODO use input for element id
-            $('#field-spatial').val(JSON.stringify(mp));
-            //$("#" + input).val(JSON.stringify(mp)); // doesn't work
+            $('#' + input).val(JSON.stringify(mp));
+
+            var bounds = drawnItems.getBounds();
+            $("#" + _self.ids['bbox-north']).val(bounds.getNorth());
+            $("#" + _self.ids['bbox-south']).val(bounds.getSouth());
+            $("#" + _self.ids['bbox-east']).val(bounds.getEast());
+            $("#" + _self.ids['bbox-west']).val(bounds.getWest());
         };
 
         // Handle the update map action
         $('#update_spatial_form_map').on('click', function() {
-          console.log($('#field-spatial').val());
           drawnItems.clearLayers();
-          var jsonStr = $('#field-spatial').val();
+          var jsonStr = $('#' + _self.ids['spatial']).val();
           if(jsonStr){
             var gj = L.geoJson(JSON.parse(jsonStr));
             var bounds = gj.getBounds();
             drawnItems.addLayer(gj);
 
-            console.log(bounds.getNorth());
-            console.log(bounds.getSouth());
-            console.log(bounds.getEast());
-            console.log(bounds.getWest());
-
-            $("#drawbbox-top").val(bounds.getNorth());
-            $("#drawbbox-bottom").val(bounds.getSouth());
-            $("#drawbbox-right").val(bounds.getEast());
-            $("#drawbbox-left").val(bounds.getWest());
-
+            $("#" + _self.ids['bbox-north']).val(bounds.getNorth());
+            $("#" + _self.ids['bbox-south']).val(bounds.getSouth());
+            $("#" + _self.ids['bbox-east']).val(bounds.getEast());
+            $("#" + _self.ids['bbox-west']).val(bounds.getWest());
           }
         });
 
         // Handle the clear map action
         $('#clear_spatial_form').on('click', function() {
           drawnItems.clearLayers();
-          $('#field-spatial').val('');
-          $("#drawbbox-top").val('');
-          $("#drawbbox-bottom").val('');
-          $("#drawbbox-right").val('');
-          $("#drawbbox-left").val('');
+          $("#" + _self.ids['spatial']).val('');
+          $("#" + _self.ids['bbox-north']).val('');
+          $("#" + _self.ids['bbox-south']).val('');
+          $("#" + _self.ids['bbox-east']).val('');
+          $("#" + _self.ids['bbox-west']).val('');
         });
 
         /* When one shape is drawn/edited/deleted, update input_id with all drawn shapes */
@@ -240,15 +238,15 @@ this.ckan.module('spatial-form', function (jQuery, _) {
             drawnItems.addLayer(layer);
             // To only add the latest drawn element to input #field-spatial:
             //$("#field-spatial")[0].value = JSON.stringify(e.layer.toGeoJSON().geometry);
-            featureGroupToInput(drawnItems, this.input);
+            featureGroupToInput(drawnItems, _self.ids['spatial']);
         });
 
         map.on('draw:editstop', function(e){
-            featureGroupToInput(drawnItems, this.input);
+            featureGroupToInput(drawnItems, _self.ids['spatial']);
         });
 
         map.on('draw:deletestop', function(e){
-            featureGroupToInput(drawnItems, this.input);
+            featureGroupToInput(drawnItems, _self.ids['spatial']);
         });
 
     }
