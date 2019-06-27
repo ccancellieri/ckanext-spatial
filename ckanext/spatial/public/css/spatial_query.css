@@ -44,9 +44,10 @@
   background-size: 12px 12px;
   border-radius: 4px;
 }
-.leaflet-draw-actions li {
+.leaflet-draw-toolbar-top ~ .leaflet-draw-actions li{
   display: none;
 }
+
 .dataset-map-expanded #dataset-map {
   position: absolute;
   width: 940px;
