@@ -1,4 +1,5 @@
 import logging
+import re
 from string import Template
 
 from ckan.model import Session, Package
@@ -79,6 +80,32 @@ def save_package_extent(package_id, geometry = None, srid = None):
         Session.add(package_extent)
         log.debug('Created new extent for package %s' % package_id)
 
+def validate_polygon(poly_wkt):
+    '''
+    Ensures a polygon or multipolygon is expressed in well known text.
+
+    poly_wkt may be:
+           a polygon string: "POLYGON((x1 y1,x2 y2, ....))"
+           or a multipolygon string: "MULTIPOLYGON(((x1 y1,x2 y2, ....)),((x1 y1,x2 y2, ....)))"
+    and returns the same WKT or none if the validation failed
+
+    Note that multipolygon internal rings are not supported. external rings only.
+      This "MULTIPOLYGON(((...)),((...)))" is valid but "MULTIPOLYGON(((...)),(...))" is not
+    '''
+
+    regex_poly = "^POLYGON\\(\\(-?\\d+\\.?\\d* -?\\d+\\.?\\d*(?:, -?\\d+\\.?\\d* -?\\d+\\.?\\d*)*\\)\\)"
+    regex_multipoly = "^MULTIPOLYGON\\(\\(\\(-?\\d+\\.?\\d* -?\\d+\\.?\\d*(?:, -?\\d+\\.?\\d* -?\\d+\\.?\\d*)*(?:\\)\\),\\(\\(-?\\d+\\.?\\d* -?\\d+\\.?\\d*(?:, -?\\d+\\.?\\d* -?\\d+\\.?\\d*)*)*\\)\\)\\)"
+
+    if not isinstance(poly_wkt, basestring):
+        return None
+
+    foundPoly = re.match(regex_poly, poly_wkt, re.IGNORECASE)
+    foundMultiPoly = re.match(regex_multipoly, poly_wkt, re.IGNORECASE)
+    if not foundPoly and not foundMultiPoly:
+        return None
+
+    return poly_wkt
+
 def validate_bbox(bbox_values):
     '''
     Ensures a bbox is expressed in a standard dict.
@@ -135,6 +162,36 @@ def _bbox_2_wkt(bbox, srid):
     else:
         input_geometry = WKTElement(wkt,db_srid)
     return input_geometry
+
+def polygon_query(wkt, srid=None):
+    '''
+    Performs a spatial query of a bounding box.
+
+    poly - WKT polygon or multipolygon
+        POLYGON((x1 y1,x2 y2,x3 y3,x4 y4,x5 y5))
+        MULTIPOLYGON(((x1 y1,x2 y2, ....)),((x1 y1,x2 y2, ....)))
+
+    Returns a query object of PackageExtents, which each reference a package
+    by ID.
+    '''
+
+    db_srid = int(config.get('ckan.spatial.srid', '4326'))
+
+    if srid and srid != db_srid:
+        # Input geometry needs to be transformed to the one used on the database
+        input_geometry = ST_Transform(WKTElement(wkt, srid), db_srid)
+    else:
+        input_geometry = WKTElement(wkt, db_srid)
+
+    if input_geometry is None:
+        return None
+
+    extents = Session.query(PackageExtent) \
+        .filter(PackageExtent.package_id == Package.id) \
+        .filter(PackageExtent.the_geom.intersects(input_geometry)) \
+        .filter(Package.state == u'active')
+
+    return extents
 
 def bbox_query(bbox,srid=None):
     '''
