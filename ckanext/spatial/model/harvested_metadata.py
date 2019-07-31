@@ -511,6 +511,15 @@ class ISODocument(MappedXmlDocument):
             ],
             multiplicity="1..*",
         ),
+        ISOResponsibleParty(
+            name="cited-responsible-party",
+            search_paths=[
+                "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:citation/gmd:CI_Citation/gmd:citedResponsibleParty/gmd:CI_ResponsibleParty",
+                "gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:citation/gmd:CI_Citation/gmd:citedResponsibleParty/gmd:CI_ResponsibleParty",
+            ],
+            multiplicity="1..*",
+        ),
+
         ISOElement(
             name="metadata-date",
             search_paths=[
@@ -866,6 +875,14 @@ class ISODocument(MappedXmlDocument):
                 "gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:graphicOverview/gmd:MD_BrowseGraphic",
             ],
             multiplicity="*",
+        ),
+        ISOResponsibleParty(
+            name="author",
+            search_paths=[
+                "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:citation/gmd:CI_Citation/gmd:citedResponsibleParty/gmd:CI_ResponsibleParty",
+                "gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:citation/gmd:CI_Citation/gmd:citedResponsibleParty/gmd:CI_ResponsibleParty",
+            ],
+            multiplicity="1..*",
         ),
 
     ]
