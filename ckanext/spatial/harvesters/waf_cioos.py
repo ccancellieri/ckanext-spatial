@@ -96,22 +96,22 @@ class WAFHarvesterCIOOS(WAFHarvester, SingletonPlugin):
         # End of processing, return the modified package
         return package_dict
 
-    # def transform_to_iso(self, original_document, original_format, harvest_object):
-    #
-    #     lowered = original_document.lower()
-    #     if '</mdb:MD_Metadata>'.lower() in lowered:
-    #         log.debug('Spatial Harvest CIOOS WAF transform: Found ISO19115-3 format, transforming to ISO19139')
-    #
-    #         xsl_filename = os.path.abspath("./ckanext-spatial/ckanext/spatial/transformers/ISO19115-3/toISO19139.xsl")
-    #         process = subprocess.Popen(["saxonb-xslt", "-s:-", xsl_filename], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    #         process.stdin.write(original_document.encode('utf-8'))
-    #         newDoc, errors = process.communicate()
-    #         process.stdin.close()
-    #         log.debug(newDoc)
-    #         log.error(errors)
-    #         return newDoc
-    #
-    #     return None
+    def transform_to_iso(self, original_document, original_format, harvest_object):
+
+        lowered = original_document.lower()
+        if '</mdb:MD_Metadata>'.lower() in lowered:
+            log.debug('Spatial Harvest CIOOS WAF transform: Found ISO19115-3 format, transforming to ISO19139')
+
+            xsl_filename = os.path.abspath("./ckanext-spatial/ckanext/spatial/transformers/ISO19115-3/toISO19139.xsl")
+            process = subprocess.Popen(["saxonb-xslt", "-s:-", xsl_filename], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            process.stdin.write(original_document.encode('utf-8'))
+            newDoc, errors = process.communicate()
+            process.stdin.close()
+            log.debug(newDoc)
+            log.error(errors)
+            return newDoc
+
+        return None
 
     # convert list of language dictinarys into dictinary of language lists
     def list_to_dict(self, obj, languages):
