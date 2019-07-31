@@ -317,7 +317,7 @@ class SpatialHarvester(HarvesterBase):
             if iso_values['responsible-organisation']:
                 resp_org = iso_values.get('responsible-organisation')[0].get('organisation-name','')
             if iso_values['metadata-point-of-contact']:
-                meta_org = iso_values.get('responsible-organisation')[0].get('organisation-name','')
+                meta_org = iso_values.get('metadata-point-of-contact')[0].get('organisation-name','')
 
             log.info("Found remote orginization options of: '%s', '%s', '%s'",package_dict['owner_org'], resp_org, meta_org)
             remote_org = package_dict['owner_org'] or resp_org or meta_org
@@ -537,6 +537,8 @@ class SpatialHarvester(HarvesterBase):
 
         extras_as_dict = []
         for key, value in extras.iteritems():
+            if package_dict.get(key,''):
+                log.error('extras %s found in package dict: key:%s value:%s',key,key,value)
             if isinstance(value, (list, dict)):
                 extras_as_dict.append({'key': key, 'value': json.dumps(value)})
             else:
