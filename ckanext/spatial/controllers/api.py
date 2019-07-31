@@ -1,4 +1,5 @@
 import logging
+import urllib
 
 try:
     from cStringIO import StringIO
@@ -14,7 +15,7 @@ from ckan.controllers.api import ApiController as BaseApiController
 from ckan.model import Session
 
 from ckanext.harvest.model import HarvestObject, HarvestObjectExtra
-from ckanext.spatial.lib import get_srid, validate_bbox, bbox_query
+from ckanext.spatial.lib import get_srid, validate_bbox, bbox_query, polygon_query, validate_polygon
 
 log = logging.getLogger(__name__)
 
@@ -24,24 +25,37 @@ class ApiController(BaseApiController):
     def spatial_query(self):
 
         error_400_msg = \
-            'Please provide a suitable bbox parameter [minx,miny,maxx,maxy]'
+            'Please provide a suitable "bbox" parameter [minx,miny,maxx,maxy], ' \
+            'or "poly" parameter [POLYGON((x1 y1,x2 y2, ....)) | MULTIPOLYGON(((x1 y1,x2 y2, ....)),((x1 y1,x2 y2, ....)))]'
 
-        if not 'bbox' in request.params:
+        bbox = poly = []
+        if 'bbox' in request.params:
+            bbox = validate_bbox(request.params['bbox'])
+        elif 'poly' in request.params:
+            poly = validate_polygon(urllib.unquote_plus(request.params['poly']))
+        else:
             abort(400, error_400_msg)
 
-        bbox = validate_bbox(request.params['bbox'])
-
-        if not bbox:
+        if not bbox and not poly:
             abort(400, error_400_msg)
 
         srid = get_srid(request.params.get('crs')) if 'crs' in \
             request.params else None
 
-        extents = bbox_query(bbox, srid)
+        if bbox:
+            extents = bbox_query(bbox, srid)
+        if poly:
+            extents = polygon_query(poly, srid)
 
         format = request.params.get('format', '')
 
-        return self._output_results(extents, format)
+        try:
+            output = self._output_results(extents, format)
+        except (Exception) as e:
+            abort(400, error_400_msg + '\n\n' + e.message)
+            output = None
+
+        return output
 
     def _output_results(self, extents, format=None):
 
