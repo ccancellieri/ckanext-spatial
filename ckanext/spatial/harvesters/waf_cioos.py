@@ -100,26 +100,19 @@ class WAFHarvesterCIOOS(WAFHarvester, SingletonPlugin):
 
         lowered = original_document.lower()
         if '</mdb:MD_Metadata>'.lower() in lowered:
-            log.debug('Spatial Harvest CIOOS WAF transform: Found ISO19115-3 format, transforming to ISO19139')
+            log.debug('Found ISO19115-3 format, transforming to ISO19139')
 
             xsl_filename = os.path.abspath("./ckanext-spatial/ckanext/spatial/transformers/ISO19115-3/toISO19139.xsl")
             process = subprocess.Popen(["saxonb-xslt", "-s:-", xsl_filename], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             process.stdin.write(original_document.encode('utf-8'))
             newDoc, errors = process.communicate()
             process.stdin.close()
-            log.debug(newDoc)
-            log.error(errors)
+            if errors:
+                log.error(errors)
+                return None
             return newDoc
 
         return None
-
-    # convert list of language dictinarys into dictinary of language lists
-    def list_to_dict(self, obj, languages):
-        dict = {l:[] for l in languages}
-        for key, value in obj.iteritems():
-            if key in languages:
-                dict[key].append(value)
-        return dict
 
     def handle_fluent_harvest_dictinary(self, field, iso_values, package_dict, schema, handled_fields, harvest_config):
         field_name = field['field_name']
@@ -142,19 +135,23 @@ class WAFHarvesterCIOOS(WAFHarvester, SingletonPlugin):
             schema_languages = p.toolkit.h.fluent_form_languages(schema=schema)
 
             # init language key
-            for lang in schema_languages:
-                field_value[lang] = []
+            field_value = {l:[] for l in schema_languages}
 
-            # process tags
+            # process tags by convert list of language dictinarys into
+            # a dictinary of language lists
             for t in tags:
                 tobj = self.from_json(t)
                 if isinstance(tobj, dict):
-                    field_value = self.list_to_dict(tobj, schema_languages)
+                    for key, value in tobj.iteritems():
+                        if key in schema_languages:
+                            field_value[key].append(value)
                 else:
                     field_value[default_language].append(tobj)
             package_dict[field_name] = field_value
 
-            # clean existing tag list in package_dict as it can only contain alphanumeric characters. This only works if clean_tags is false in config
+            # clean existing tag list in package_dict as it can only contain
+            # alphanumeric characters. This only works if clean_tags is false
+            # in config
             pkg_dict_tags = package_dict.get('tags', [])
             if pkg_dict_tags and not harvest_config.get('clean_tags'):
                 tag_list = []
@@ -169,7 +166,7 @@ class WAFHarvesterCIOOS(WAFHarvester, SingletonPlugin):
                     else:
                         if x['name'] not in tag_list:
                             tag_list.append(x['name'])
-                package_dict['tags'] = [{'name': item} for item in tag_list]
+                package_dict['tags'] = [{'name': t} for t in tag_list]
 
         else:
             # strip trailing _translated part of field name
