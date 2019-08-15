@@ -505,6 +505,16 @@
       <mri:descriptiveKeywords>
         <mri:MD_Keywords>
           <mri:keyword>
+            <gco:CharacterString>{"en":"Speed of Sound", "fr":"Vitesse du son"}</gco:CharacterString>
+          </mri:keyword>
+          <mri:type>
+            <mri:MD_KeywordTypeCode codeList="https://standards.iso.org/iso/19115/resources/Codelists/cat/codelists.xml#MD_KeywordTypeCode" codeListValue="theme"/>
+          </mri:type>
+        </mri:MD_Keywords>
+      </mri:descriptiveKeywords>
+      <mri:descriptiveKeywords>
+        <mri:MD_Keywords>
+          <mri:keyword>
             <gco:CharacterString>{"en":"ECOLOGY Landscape", "fr":"ECOLOGIE Paysage"}</gco:CharacterString>
           </mri:keyword>
           <mri:type>
