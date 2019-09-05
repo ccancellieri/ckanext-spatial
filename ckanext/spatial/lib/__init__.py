@@ -87,6 +87,7 @@ def validate_polygon(poly_wkt):
     poly_wkt may be:
            a polygon string: "POLYGON((x1 y1,x2 y2, ....))"
            or a multipolygon string: "MULTIPOLYGON(((x1 y1,x2 y2, ....)),((x1 y1,x2 y2, ....)))"
+           or a box string: "BOX(minx,miny,maxx,maxy)"
     and returns the same WKT or none if the validation failed
 
     Note that multipolygon internal rings are not supported. external rings only.
@@ -95,13 +96,15 @@ def validate_polygon(poly_wkt):
 
     regex_poly = "^POLYGON\\(\\(-?\\d+\\.?\\d* -?\\d+\\.?\\d*(?:, -?\\d+\\.?\\d* -?\\d+\\.?\\d*)*\\)\\)"
     regex_multipoly = "^MULTIPOLYGON\\(\\(\\(-?\\d+\\.?\\d* -?\\d+\\.?\\d*(?:, -?\\d+\\.?\\d* -?\\d+\\.?\\d*)*(?:\\)\\),\\(\\(-?\\d+\\.?\\d* -?\\d+\\.?\\d*(?:, -?\\d+\\.?\\d* -?\\d+\\.?\\d*)*)*\\)\\)\\)"
+    regex_box = "^BOX\\(-?\\d+\\.?\\d*,-?\\d+\\.?\\d*,-?\\d+\\.?\\d*,-?\\d+\\.?\\d*\\)"
 
     if not isinstance(poly_wkt, basestring):
         return None
 
     foundPoly = re.match(regex_poly, poly_wkt, re.IGNORECASE)
     foundMultiPoly = re.match(regex_multipoly, poly_wkt, re.IGNORECASE)
-    if not foundPoly and not foundMultiPoly:
+    foundBox = re.match(regex_box, poly_wkt, re.IGNORECASE)
+    if not foundPoly and not foundMultiPoly and not foundBox:
         return None
 
     return poly_wkt
