@@ -32,11 +32,11 @@ class ApiController(BaseApiController):
         if 'bbox' in request.params:
             bbox = validate_bbox(request.params['bbox'])
         elif 'poly' in request.params:
-            poly_str = urllib.unquote_plus(request.params['poly']
+            poly_str = urllib.unquote_plus(request.params['poly'])
             if poly_str.startswith('BOX'):
                 bbox = validate_bbox(poly_str[4:-1])
             else:
-                poly = validate_polygon(urllib.unquote_plus(request.params['poly']))
+                poly = validate_polygon(poly_str)
         else:
             abort(400, error_400_msg)
 
