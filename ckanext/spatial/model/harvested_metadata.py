@@ -770,6 +770,14 @@ class ISODocument(MappedXmlDocument):
             multiplicity="*",
         ),
         ISOElement(
+            name="spatial",
+            search_paths=[
+                "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:extent/gmd:EX_Extent/gmd:geographicElement/gmd:EX_GeographicalExtent",
+                "gmd:identificationInfo/srv:SV_ServiceIdentification/srv:extent/gmd:EX_Extent/gmd:geographicElement/gmd:EX_GeographicalExtent",
+            ],
+            multiplicity="*",
+        ),
+        ISOElement(
             name="temporal-extent-begin",
             search_paths=[
                 "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:extent/gmd:EX_Extent/gmd:temporalElement/gmd:EX_TemporalExtent/gmd:extent/gml:TimePeriod/gml:beginPosition/text()",
