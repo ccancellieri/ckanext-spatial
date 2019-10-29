@@ -736,6 +736,9 @@ class SpatialHarvester(HarvesterBase):
                 package_id = p.toolkit.get_action('package_create')(context, package_dict)
                 log.info('Created new package %s with guid %s', package_id, harvest_object.guid)
             except p.toolkit.ValidationError, e:
+                # call refresh() on every instance this fixes issues [151](https://github.com/ckan/ckanext-harvest/issues/151) and [262](https://github.com/ckan/ckanext-harvest/issues/262)
+                for s in iter(model.Session):
+                    model.Session.refresh(s)
                 self._save_object_error('Validation Error: %s' % str(e.error_summary), harvest_object, 'Import')
                 return False
 
@@ -782,6 +785,9 @@ class SpatialHarvester(HarvesterBase):
                     package_id = p.toolkit.get_action('package_update')(context, package_dict)
                     log.info('Updated package %s with guid %s', package_id, harvest_object.guid)
                 except p.toolkit.ValidationError, e:
+                    # call refresh() on every instance this fixes issues [151](https://github.com/ckan/ckanext-harvest/issues/151) and [262](https://github.com/ckan/ckanext-harvest/issues/262)
+                    for s in iter(model.Session):
+                        model.Session.refresh(s)
                     self._save_object_error('Validation Error: %s' % str(e.error_summary), harvest_object, 'Import')
                     return False
 
@@ -953,6 +959,9 @@ class SpatialHarvester(HarvesterBase):
         valid, profile, errors = validator.is_valid(xml)
         if not valid:
             log.error('Validation errors found using profile {0} for object with GUID {1}'.format(profile, harvest_object.guid))
+            # call refresh() on every instance this fixes issues [151](https://github.com/ckan/ckanext-harvest/issues/151) and [262](https://github.com/ckan/ckanext-harvest/issues/262)
+            for s in iter(model.Session):
+                model.Session.refresh(s)
             for error in errors:
                 self._save_object_error(error[0], harvest_object, 'Validation', line=error[1])
 
