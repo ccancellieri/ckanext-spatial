@@ -53,6 +53,10 @@ def guess_standard(content):
         return 'iso'
     if '</gmi:MI_Metadata>'.lower() in lowered:
         return 'iso'
+    if '</mdb:MD_Metadata>'.lower() in lowered:
+        return 'iso'
+    if '</mdi:MI_Metadata>'.lower() in lowered:
+        return 'iso'
     if '</metadata>'.lower() in lowered:
         return 'fgdc'
     return 'unknown'
@@ -440,9 +444,8 @@ class SpatialHarvester(HarvesterBase):
             if browse_graphic.get('type'):
                 extras['graphic-preview-type'] = browse_graphic.get('type')
 
-
         for key in ['temporal-extent-begin', 'temporal-extent-end']:
-            if len(iso_values[key]) > 0:
+            if len(iso_values.get(key, '')) > 0:
                 extras[key] = iso_values[key][0]
 
         # Save responsible organization roles
