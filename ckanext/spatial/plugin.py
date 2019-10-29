@@ -147,7 +147,7 @@ class SpatialMetadata(p.SingletonPlugin):
                 'get_reference_date' : spatial_helpers.get_reference_date,
                 'get_responsible_party': spatial_helpers.get_responsible_party,
                 'get_common_map_config' : spatial_helpers.get_common_map_config,
-		'spatial_widget_expands': spatial_helpers.spatial_widget_expands,
+    'spatial_widget_expands': spatial_helpers.spatial_widget_expands,
                 }
 
 class SpatialQuery(p.SingletonPlugin):
@@ -185,24 +185,38 @@ class SpatialQuery(p.SingletonPlugin):
                 return pkg_dict
 
             if self.search_backend == 'solr':
-                #try to convert points to bbox
-                if (geometry['type'] == 'Point'):
-                    geom = shapely.geometry.shape(geometry)
-                    minx,miny,maxx,maxy = geom.bounds
-		    # offset points by 1 meter
-                    minx = minx - 0.00001
-                    miny = miny - 0.00001
-                    maxx = maxx + 0.00001
-                    maxy = maxy + 0.00001
-                    poly = shapely.geometry.Polygon([(minx,miny), (minx,maxy), (maxx,maxy), (maxx,miny), (minx,miny)]) # generate polygon from bounds
-                    geometry = shapely.geometry.mapping(poly) # conver to GeoJSON like dirctionary
+                # try to convert points to bbox
+                # if (geometry['type'] == 'Point'):
+                #     geom = shapely.geometry.shape(geometry)
+                #     minx, miny, maxx, maxy = geom.bounds
+                #     # offset points by 1 meter
+                #     minx = minx - 0.00001
+                #     miny = miny - 0.00001
+                #     maxx = maxx + 0.00001
+                #     maxy = maxy + 0.00001
+                #     poly = shapely.geometry.Polygon([(minx, miny), (minx, maxy), (maxx, maxy), (maxx, miny), (minx, miny)])  # generate polygon from bounds
+                #     geometry = shapely.geometry.mapping(poly)  # conver to GeoJSON like dirctionary
 
-               # Only bbox supported for this backend
+                # Only bbox supported for this backend
                 if not (geometry['type'] == 'Polygon'
                    and len(geometry['coordinates']) == 1
                    and len(geometry['coordinates'][0]) == 5):
-                    log.error('Solr backend only supports bboxes (Polygons with 5 points), ignoring geometry {0}'.format(pkg_dict['extras_spatial']))
-                    return pkg_dict
+                    try:
+                        log.debug('Coercing geometry into bbox(5 point polygon)')
+                        geom = shapely.geometry.shape(geometry)
+                        minx, miny, maxx, maxy = geom.bounds
+                        if (geometry['type'] == 'Point'):
+                            # offset points by 1 meter
+                            minx = minx - 0.00001
+                            miny = miny - 0.00001
+                            maxx = maxx + 0.00001
+                            maxy = maxy + 0.00001
+                        poly = shapely.geometry.Polygon([(minx, miny), (minx, maxy), (maxx, maxy), (maxx, miny), (minx, miny)])  # generate polygon from bounds
+                        geometry = shapely.geometry.mapping(poly)
+                    except Exception, e:
+                        log.error(e)
+                        log.error('Solr backend only supports bboxes (Polygons with 5 points), ignoring geometry {0}'.format(pkg_dict['extras_spatial']))
+                        return pkg_dict
 
                 coords = geometry['coordinates']
                 pkg_dict['maxy'] = max(coords[0][2][1], coords[0][0][1])
@@ -244,11 +258,10 @@ class SpatialQuery(p.SingletonPlugin):
 
                 pkg_dict['spatial_geom'] = wkt
 
-
         return pkg_dict
 
     def before_search(self, search_params):
-        from ckanext.spatial.lib import  validate_bbox
+        from ckanext.spatial.lib import validate_bbox
         from ckan.lib.search import SearchError
 
         if search_params.get('extras', None) and search_params['extras'].get('ext_bbox', None):
@@ -294,7 +307,7 @@ class SpatialQuery(p.SingletonPlugin):
 
         '''
 
-        variables =dict(
+        variables = dict(
             x11=bbox['minx'],
             x12=bbox['maxx'],
             y11=bbox['miny'],
@@ -303,7 +316,7 @@ class SpatialQuery(p.SingletonPlugin):
             x22='maxx',
             y21='miny',
             y22='maxy',
-            area_search = abs(bbox['maxx'] - bbox['minx']) * abs(bbox['maxy'] - bbox['miny'])
+            area_search=abs(bbox['maxx'] - bbox['minx']) * abs(bbox['maxy'] - bbox['miny'])
         )
 
         bf = '''div(
@@ -313,7 +326,7 @@ class SpatialQuery(p.SingletonPlugin):
                        ),
                    2),
                    add({area_search}, mul(sub({y22}, {y21}), sub({x22}, {x21})))
-                )'''.format(**variables).replace('\n','').replace(' ','')
+                )'''.format(**variables).replace('\n', '').replace(' ', '')
 
         search_params['fq_list'] = ['{!frange incl=false l=0 u=1}%s' % bf]
 
@@ -336,7 +349,7 @@ class SpatialQuery(p.SingletonPlugin):
         return search_params
 
     def _params_for_postgis_search(self, bbox, search_params):
-        from ckanext.spatial.lib import   bbox_query, bbox_query_ordered
+        from ckanext.spatial.lib import bbox_query, bbox_query_ordered
         from ckan.lib.search import SearchError
 
         # Note: This will be deprecated at some point in favour of the
@@ -356,14 +369,14 @@ class SpatialQuery(p.SingletonPlugin):
             # they are in the wrong order anyway. We just need this SOLR
             # query to get the count and facet counts.
             rows = 0
-            search_params['sort'] = None # SOLR should not sort.
+            search_params['sort'] = None  # SOLR should not sort.
             # Store the rankings of the results for this page, so for
             # after_search to construct the correctly sorted results
             rows = search_params['extras']['ext_rows'] = search_params['rows']
             start = search_params['extras']['ext_start'] = search_params['start']
             search_params['extras']['ext_spatial'] = [
                 (extent.package_id, extent.spatial_ranking) \
-                for extent in extents[start:start+rows]]
+                for extent in extents[start:start + rows]]
         else:
             extents = bbox_query(bbox)
             are_no_results = extents.count() == 0
