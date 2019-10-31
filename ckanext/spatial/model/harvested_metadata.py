@@ -81,16 +81,10 @@ class MappedXmlElement(MappedXmlObject):
     def get_elements(self, tree, xpath):
         val = ''
         try:
-            # merge_NS = self.namespaces.copy()
-            # merge_NS.update(tree.nsmap)
-            # log.debug('Merged Namepsaces:%r', merge_NS)
             val = tree.xpath(xpath, namespaces=self.namespaces)
-            # log.debug('xpath:%r', xpath)
-            # val = tree.xpath(xpath, namespaces=merge_NS)
-            # log.debug('val:%s', etree.tostring(next(iter(val), None)))
         except Exception as e:
             log.error('xpath:%r', xpath)
-            log.error(e)
+            log.exception(e)
         return val
 
     def get_values(self, elements):
@@ -163,14 +157,15 @@ class ISOElement(MappedXmlElement):
 
     namespaces = {
         "gts": "http://www.isotc211.org/2005/gts",
-        #"gml": "http://www.opengis.net/gml",
-        #"gml32": "http://www.opengis.net/gml/3.2",
+        # "gml": "http://www.opengis.net/gml",
+        "gml32": "http://www.opengis.net/gml/3.2",
         "gmx": "http://www.isotc211.org/2005/gmx",
         "gsr": "http://www.isotc211.org/2005/gsr",
         "gss": "http://www.isotc211.org/2005/gss",
         # "gco": "http://www.isotc211.org/2005/gco",
         "gmd": "http://www.isotc211.org/2005/gmd",
         # "srv": "http://www.isotc211.org/2005/srv",
+        # ISO19115-3
         "xlink": "http://www.w3.org/1999/xlink",
         "gml": "http://www.opengis.net/gml/3.2",
         "cit": "http://standards.iso.org/iso/19115/-3/cit/2.0",
@@ -185,14 +180,14 @@ class ISOElement(MappedXmlElement):
         "mco": "http://standards.iso.org/iso/19115/-3/mco/1.0",
         "mdb": "http://standards.iso.org/iso/19115/-3/mdb/2.0",
         # "mdq": "http://standards.iso.org/iso/19157/-2/mdq/1.0",
-        # "mds": "http://standards.iso.org/iso/19115/-3/mds/2.0",
+        "mds": "http://standards.iso.org/iso/19115/-3/mds/2.0",
         "mmi": "http://standards.iso.org/iso/19115/-3/mmi/1.0",
         # "mpc": "http://standards.iso.org/iso/19115/-3/mpc/1.0",
         # "mrc": "http://standards.iso.org/iso/19115/-3/mrc/2.0",
         # "mrd": "http://standards.iso.org/iso/19115/-3/mrd/1.0",
         "mri": "http://standards.iso.org/iso/19115/-3/mri/1.0",
         # "mrl": "http://standards.iso.org/iso/19115/-3/mrl/2.0",
-        # "mrs": "http://standards.iso.org/iso/19115/-3/mrs/1.0",
+        "mrs": "http://standards.iso.org/iso/19115/-3/mrs/1.0",
         # "msr": "http://standards.iso.org/iso/19115/-3/msr/2.0",
         "srv": "http://standards.iso.org/iso/19115/-3/srv/2.0",
         "xml": "http://www.w3.org/XML/1998/namespace",
@@ -859,7 +854,7 @@ class ISODocument(MappedXmlDocument):
                 "gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:status/gmd:MD_ProgressCode/@codeListValue",
                 "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:status/gmd:MD_ProgressCode/text()",
                 "gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:status/gmd:MD_ProgressCode/text()",
-
+                # ISO19115-3
                 "mdb:identificationInfo/mri:MD_DataIdentification/mri:status/mcc:MD_ProgressCode/@codeListValue",
                 "mdb:identificationInfo/srv:SV_ServiceIdentification/mri:status/mcc:MD_ProgressCode/@codeListValue",
                 "mdb:identificationInfo/mri:MD_DataIdentification/mri:status/mcc:MD_ProgressCode/text()",
@@ -1219,12 +1214,13 @@ class ISODocument(MappedXmlDocument):
             value = value.replace("Z", "+0000")
             utc_dt = datetime.datetime.strptime(value[:19], '%Y-%m-%dT%H:%M:%S') + datetime.timedelta(hours=int(value[20:22]), minutes=int(value[23:])) * (-1 if value[19] == '+' else 1)
             return utc_dt.strftime('%Y-%m-%d %H:%M:%S')
-        except Exception, e:
+        except Exception as e:
             log.debug('Could not convert datetime value %s to UTC: %s', value, e)
             return value
 
     def infer_values(self, values):
         # Todo: Infer name.
+        self.clean_dataset_reference_date(values)
         self.infer_date_released(values)
         self.infer_date_updated(values)
         self.infer_date_created(values)
@@ -1330,7 +1326,7 @@ class ISODocument(MappedXmlDocument):
     def infer_multilinguale(self, values):
         for key in values:
             value = values[key]
-            log.debug('%s:%r', key, value)
+
             # second case used to gracfully fail if no secondary language is defined
             if (
                 isinstance(value, dict) and
@@ -1342,12 +1338,9 @@ class ISODocument(MappedXmlDocument):
                 defaultLangKey = self.cleanLangKey(values.get('metadata-language', 'en'))
                 LangDict = self.local_to_dict(values[key], defaultLangKey)
                 values[key] = json.dumps(LangDict)
-                log.debug('Multilinguale:%r', values[key])
 
     def infer_spatial(self, values):
-        # log.debug('INFER SPATIAL')
         geom = None
-        log.debug(values.get('spatial'))
         for xmlGeom in values.get('spatial', []):
             log.debug('Harvesting Spatial:%r', xmlGeom)
             try:
@@ -1364,13 +1357,20 @@ class ISODocument(MappedXmlDocument):
                         return
         if geom:
             values['spatial'] = geom.ExportToJson()
-            log.debug('Spatial converted to:%r', values['spatial'])
+
+    def clean_dataset_reference_date(self, values):
+        dates = []
+        for date in values['dataset-reference-date']:
+            date['value'] = self.iso_date_time_to_utc(date['value'])[:10]
+            dates.append(date)
+        if dates:
+            values['dataset-reference-date'] = dates
 
     def infer_date_released(self, values):
         value = ''
         for date in values['dataset-reference-date']:
             if date['type'] == 'publication':
-                value = self.iso_date_time_to_utc(date['value'])
+                value = date['value']
                 break
         values['date-released'] = value
 
@@ -1380,7 +1380,7 @@ class ISODocument(MappedXmlDocument):
         # Use last of several multiple revision dates.
         for date in values['dataset-reference-date']:
             if date['type'] == 'revision':
-                dates.append(self.iso_date_time_to_utc(date['value']))
+                dates.append(date['value'])
 
         if len(dates):
             if len(dates) > 1:
@@ -1392,7 +1392,7 @@ class ISODocument(MappedXmlDocument):
         value = ''
         for date in values['dataset-reference-date']:
             if date['type'] == 'creation':
-                value = self.iso_date_time_to_utc(date['value'])
+                value = date['value']
                 break
         values['date-created'] = value
 
