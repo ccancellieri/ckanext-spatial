@@ -183,7 +183,9 @@ this.ckan.module('spatial-form', function (jQuery, _) {
                 rectangle: {repeatMode: false}
 
             },
-            edit: { featureGroup: drawnItems }
+            edit: { featureGroup: drawnItems,
+            edit: false
+           }
         });
         map.addControl(drawControl);
 
@@ -193,16 +195,30 @@ this.ckan.module('spatial-form', function (jQuery, _) {
          */
         var featureGroupToInput = function(fg, input){
             var gj = drawnItems.toGeoJSON().features;
+            console.log(gj)
             var polyarray = [];
-            $.each(gj, function(index, value){ polyarray.push(value.geometry.coordinates); });
-            mp = {"type": "MultiPolygon", "coordinates": polyarray};
+            $.each(gj, function(index, value){
+              if(value.geometry.type == "FeatureCollection" && value.geometry.features[0].geometry.type == "MultiPolygon"){
+                polyarray = polyarray.concat(value.geometry.features[0].geometry.coordinates)
+              }else if (value.geometry.type == "Polygon") {
+                polyarray.push(value.geometry.coordinates);
+              }
+            });
+
+            if(polyarray){
+              mp = {"type": "MultiPolygon", "coordinates": polyarray};
+            }else{
+              mp = ''
+            }
             $('#' + input).val(JSON.stringify(mp));
 
             var bounds = drawnItems.getBounds();
-            $("#" + _self.ids['bbox-north']).val(bounds.getNorth());
-            $("#" + _self.ids['bbox-south']).val(bounds.getSouth());
-            $("#" + _self.ids['bbox-east']).val(bounds.getEast());
-            $("#" + _self.ids['bbox-west']).val(bounds.getWest());
+            if(bounds._southWest && bounds._northEast){
+              $("#" + _self.ids['bbox-north']).val(bounds.getNorth());
+              $("#" + _self.ids['bbox-south']).val(bounds.getSouth());
+              $("#" + _self.ids['bbox-east']).val(bounds.getEast());
+              $("#" + _self.ids['bbox-west']).val(bounds.getWest());
+            }
         };
 
         // Handle the update map action
@@ -213,11 +229,12 @@ this.ckan.module('spatial-form', function (jQuery, _) {
             var gj = L.geoJson(JSON.parse(jsonStr));
             var bounds = gj.getBounds();
             drawnItems.addLayer(gj);
-
-            $("#" + _self.ids['bbox-north']).val(bounds.getNorth());
-            $("#" + _self.ids['bbox-south']).val(bounds.getSouth());
-            $("#" + _self.ids['bbox-east']).val(bounds.getEast());
-            $("#" + _self.ids['bbox-west']).val(bounds.getWest());
+            if(bounds._southWest && bounds._northEast){
+              $("#" + _self.ids['bbox-north']).val(bounds.getNorth());
+              $("#" + _self.ids['bbox-south']).val(bounds.getSouth());
+              $("#" + _self.ids['bbox-east']).val(bounds.getEast());
+              $("#" + _self.ids['bbox-west']).val(bounds.getWest());
+            }
           }
         });
 
