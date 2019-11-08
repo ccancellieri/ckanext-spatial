@@ -934,7 +934,7 @@ class ISODocument(MappedXmlDocument):
                 "mdb:identificationInfo/*[contains(local-name(), 'Identification')]/mri:resourceConstraints/mco:MD_Constraints/mco:useLimitation/gco:CharacterString/text()",
                 "mdb:identificationInfo/*[contains(local-name(), 'Identification')]/mri:resourceConstraints/mco:MD_LegalConstraints/mco:useLimitation/gco:CharacterString/text()",
             ],
-            multiplicity="*",
+            multiplicity="0..1",
         ),
         ISOElement(
             name="use-constraints-code",
@@ -947,7 +947,15 @@ class ISODocument(MappedXmlDocument):
                 "mdb:identificationInfo/*[contains(local-name(), 'Identification')]/mri:resourceConstraints/mco:MD_LegalConstraints/mco:useConstraints/mco:MD_RestrictionCode/@codeListValue",
                 "mdb:identificationInfo/*[contains(local-name(), 'Identification')]/mri:resourceConstraints/mco:MD_LegalConstraints/mco:useConstraints/mco:MD_RestrictionCode/text()",
             ],
-            multiplicity="*",
+            multiplicity="0..1",
+        ),
+        ISOElement(
+            name="legal-constraints-reference-code",
+            search_paths=[
+                # 19115-3
+                "mdb:identificationInfo/*[contains(local-name(), 'Identification')]/mri:resourceConstraints/mco:MD_LegalConstraints/mco:reference/cit:CI_Citation/cit:identifier/mcc:MD_Identifier/mcc:code/gco:CharacterString/text()",
+            ],
+            multiplicity="0..1",
         ),
         ISOAggregationInfo(
             name="aggregation-info",
