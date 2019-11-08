@@ -333,8 +333,10 @@ class ISOReferenceDate(ISOElement):
         ISOElement(
             name="type",
             search_paths=[
+                # 19139
                 "gmd:dateType/gmd:CI_DateTypeCode/@codeListValue",
                 "gmd:dateType/gmd:CI_DateTypeCode/text()",
+                # 19115-3
                 "cit:dateType/cit:CI_DateTypeCode/@codeListValue",
                 "cit:dateType/cit:CI_DateTypeCode/text()",
             ],
@@ -639,6 +641,7 @@ class ISODocument(MappedXmlDocument):
             search_paths=[
                 "gmd:hierarchyLevel/gmd:MD_ScopeCode/@codeListValue",
                 "gmd:hierarchyLevel/gmd:MD_ScopeCode/text()",
+                # 19115-3
                 "mdb:metadataScope/mdb:MD_MetadataScope/mdb:resourceScope/mcc:MD_ScopeCode/@codeListValue",
                 "mdb:metadataScope/mdb:MD_MetadataScope/mdb:resourceScope/mcc:MD_ScopeCode/text()",
             ],
@@ -650,6 +653,7 @@ class ISODocument(MappedXmlDocument):
                 "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:pointOfContact/gmd:CI_ResponsibleParty",
                 "gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:pointOfContact/gmd:CI_ResponsibleParty",
                 # 19115-3
+                "mdb:contact/cit:CI_Responsibility"
                 "mdb:identificationInfo/*[contains(local-name(), 'Identification')]/mri:citation/cit:CI_Citation/cit:citedResponsibleParty/cit:CI_Responsibility[cit:role/cit:CI_RoleCode/@codeListValue ='pointOfContact' and cit:party/cit:CI_Individual]",
                 "mdb:identificationInfo/*[contains(local-name(), 'Identification')]/mri:citation/cit:CI_Citation/cit:citedResponsibleParty/cit:CI_Responsibility[cit:role/cit:CI_RoleCode/@codeListValue ='publisher' and cit:party/cit:CI_Individual]",
                 "mdb:identificationInfo/*[contains(local-name(), 'Identification')]/mri:citation/cit:CI_Citation/cit:citedResponsibleParty/cit:CI_Responsibility[cit:role/cit:CI_RoleCode/@codeListValue ='author' and cit:party/cit:CI_Individual]",
@@ -681,6 +685,7 @@ class ISODocument(MappedXmlDocument):
             search_paths=[
                 "gmd:dateStamp/gco:DateTime/text()",
                 "gmd:dateStamp/gco:Date/text()",
+                # 19115-3
                 "mdb:dateInfo/cit:CI_Date[cit:dateType/cit:CI_DateTypeCode/@codeListValue='creation']/cit:date/gco:Date/text()",
                 "mdb:dateInfo/cit:CI_Date[cit:dateType/cit:CI_DateTypeCode/text()='creation']/cit:date/gco:Date/text()",
                 "mdb:dateInfo/cit:CI_Date[cit:dateType/cit:CI_DateTypeCode/@codeListValue='creation']/cit:date/gco:DateTime/text()",
@@ -716,8 +721,10 @@ class ISODocument(MappedXmlDocument):
         ISOReferenceDate(
             name="dataset-reference-date",
             search_paths=[
+                # 19139
                 "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:citation/gmd:CI_Citation/gmd:date/gmd:CI_Date",
                 "gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:citation/gmd:CI_Citation/gmd:date/gmd:CI_Date",
+                # 19115-3
                 "mdb:dateInfo/cit:CI_Date",
             ],
             multiplicity="1..*",
@@ -727,6 +734,7 @@ class ISODocument(MappedXmlDocument):
             search_paths=[
                 "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:citation/gmd:CI_Citation/gmd:identifier/gmd:MD_Identifier/gmd:code/gco:CharacterString/text()",
                 "gmd:identificationInfo/gmd:SV_ServiceIdentification/gmd:citation/gmd:CI_Citation/gmd:identifier/gmd:MD_Identifier/gmd:code/gco:CharacterString/text()",
+                # 19115-3
                 "mdb:metadataIdentifier/mcc:MD_Identifier/mcc:code/gco:CharacterString/text()",
             ],
             multiplicity="0..1",
@@ -742,6 +750,7 @@ class ISODocument(MappedXmlDocument):
         ISOElement(
             name="unique-resource-identifier-full",
             search_paths=[
+                # 19115-3
                 "mdb:metadataIdentifier/mcc:MD_Identifier",
             ],
             multiplicity="0..1",
@@ -1207,6 +1216,7 @@ class ISODocument(MappedXmlDocument):
             search_paths=[
                 "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:citation/gmd:CI_Citation/gmd:citedResponsibleParty/gmd:CI_ResponsibleParty",
                 "gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:citation/gmd:CI_Citation/gmd:citedResponsibleParty/gmd:CI_ResponsibleParty",
+                # 19115-3
                 "mdb:identificationInfo/*[contains(local-name(), 'Identification')]/mri:citation/cit:CI_Citation/cit:citedResponsibleParty/cit:CI_Responsibility[cit:role/cit:CI_RoleCode/@codeListValue ='author']",
                 "mdb:identificationInfo/*[contains(local-name(), 'Identification')]/mri:citation/cit:CI_Citation/cit:citedResponsibleParty/cit:CI_Responsibility[cit:role/cit:CI_RoleCode/@codeListValue ='originator']",
                 "mdb:identificationInfo/*[contains(local-name(), 'Identification')]/mri:citation/cit:CI_Citation/cit:citedResponsibleParty/cit:CI_Responsibility[cit:role/cit:CI_RoleCode/text() ='author']",
