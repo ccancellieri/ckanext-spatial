@@ -184,7 +184,7 @@ class ISOElement(MappedXmlElement):
         "mmi": "http://standards.iso.org/iso/19115/-3/mmi/1.0",
         # "mpc": "http://standards.iso.org/iso/19115/-3/mpc/1.0",
         # "mrc": "http://standards.iso.org/iso/19115/-3/mrc/2.0",
-        # "mrd": "http://standards.iso.org/iso/19115/-3/mrd/1.0",
+        "mrd": "http://standards.iso.org/iso/19115/-3/mrd/1.0",
         "mri": "http://standards.iso.org/iso/19115/-3/mri/1.0",
         # "mrl": "http://standards.iso.org/iso/19115/-3/mrl/2.0",
         "mrs": "http://standards.iso.org/iso/19115/-3/mrs/1.0",
@@ -204,7 +204,8 @@ class ISOResourceLocator(ISOElement):
             name="url",
             search_paths=[
                 "gmd:linkage/gmd:URL/text()",
-                "cit:linkage/gco:CharacterString/text()"
+                # 19115-3
+                "cit:linkage/gco:CharacterString/text()",
             ],
             multiplicity="1",
         ),
@@ -212,6 +213,9 @@ class ISOResourceLocator(ISOElement):
             name="function",
             search_paths=[
                 "gmd:function/gmd:CI_OnLineFunctionCode/@codeListValue",
+                # 19115-3
+                "cit:function/cit:CI_OnLineFunctionCode/@codeListValue",
+                "cit:function/cit:CI_OnLineFunctionCode/text()",
             ],
             multiplicity="0..1",
         ),
@@ -219,6 +223,8 @@ class ISOResourceLocator(ISOElement):
             name="name",
             search_paths=[
                 "gmd:name/gco:CharacterString/text()",
+                # 19115-3
+                "cit:name/gco:CharacterString/text()",
             ],
             multiplicity="0..1",
         ),
@@ -226,6 +232,8 @@ class ISOResourceLocator(ISOElement):
             name="description",
             search_paths=[
                 "gmd:description/gco:CharacterString/text()",
+                # 19115-3
+                "cit:description/gco:CharacterString/text()",
             ],
             multiplicity="0..1",
         ),
@@ -233,6 +241,24 @@ class ISOResourceLocator(ISOElement):
             name="protocol",
             search_paths=[
                 "gmd:protocol/gco:CharacterString/text()",
+                # 19115-3
+                "cit:protocol/gco:CharacterString/text()",
+            ],
+            multiplicity="0..1",
+        ),
+        ISOElement(
+            name="protocol-request",
+            search_paths=[
+                # 19115-3
+                "cit:protocolRequest/gco:CharacterString/text()",
+            ],
+            multiplicity="0..1",
+        ),
+        ISOElement(
+            name="application-profile",
+            search_paths=[
+                # 19115-3
+                "cit:applicationProfile/gco:CharacterString/text()",
             ],
             multiplicity="0..1",
         ),
@@ -389,28 +415,40 @@ class ISOBoundingBox(ISOElement):
         ISOElement(
             name="west",
             search_paths=[
+                # ISO19139
                 "gmd:westBoundLongitude/gco:Decimal/text()",
+                # ISO19115-3
+                "gex:westBoundLongitude/gco:Decimal/text()",
             ],
             multiplicity="1",
         ),
         ISOElement(
             name="east",
             search_paths=[
+                # ISO19139
                 "gmd:eastBoundLongitude/gco:Decimal/text()",
+                # ISO19115-3
+                "gex:eastBoundLongitude/gco:Decimal/text()",
             ],
             multiplicity="1",
         ),
         ISOElement(
             name="north",
             search_paths=[
+                # ISO19139
                 "gmd:northBoundLatitude/gco:Decimal/text()",
+                # ISO19115-3
+                "gex:northBoundLatitude/gco:Decimal/text()",
             ],
             multiplicity="1",
         ),
         ISOElement(
             name="south",
             search_paths=[
+                # ISO19139
                 "gmd:southBoundLatitude/gco:Decimal/text()",
+                # ISO19115-3
+                "gex:southBoundLatitude/gco:Decimal/text()",
             ],
             multiplicity="1",
         ),
@@ -653,7 +691,7 @@ class ISODocument(MappedXmlDocument):
                 "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:pointOfContact/gmd:CI_ResponsibleParty",
                 "gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:pointOfContact/gmd:CI_ResponsibleParty",
                 # 19115-3
-                "mdb:contact/cit:CI_Responsibility"
+                "mdb:contact/cit:CI_Responsibility",
                 "mdb:identificationInfo/*[contains(local-name(), 'Identification')]/mri:citation/cit:CI_Citation/cit:citedResponsibleParty/cit:CI_Responsibility[cit:role/cit:CI_RoleCode/@codeListValue ='pointOfContact' and cit:party/cit:CI_Individual]",
                 "mdb:identificationInfo/*[contains(local-name(), 'Identification')]/mri:citation/cit:CI_Citation/cit:citedResponsibleParty/cit:CI_Responsibility[cit:role/cit:CI_RoleCode/@codeListValue ='publisher' and cit:party/cit:CI_Individual]",
                 "mdb:identificationInfo/*[contains(local-name(), 'Identification')]/mri:citation/cit:CI_Citation/cit:citedResponsibleParty/cit:CI_Responsibility[cit:role/cit:CI_RoleCode/@codeListValue ='author' and cit:party/cit:CI_Individual]",
@@ -1040,8 +1078,11 @@ class ISODocument(MappedXmlDocument):
         ISOBoundingBox(
             name="bbox",
             search_paths=[
+                # ISO19139
                 "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:extent/gmd:EX_Extent/gmd:geographicElement/gmd:EX_GeographicBoundingBox",
                 "gmd:identificationInfo/srv:SV_ServiceIdentification/srv:extent/gmd:EX_Extent/gmd:geographicElement/gmd:EX_GeographicBoundingBox",
+                # ISO19115-3
+                "mdb:identificationInfo/mri:MD_DataIdentification/mri:extent/gex:EX_Extent/gex:geographicElement/gex:EX_GeographicBoundingBox",
             ],
             multiplicity="*",
         ),
@@ -1165,6 +1206,8 @@ class ISODocument(MappedXmlDocument):
             search_paths=[
                 "gmd:distributionInfo/gmd:MD_Distribution/gmd:transferOptions/gmd:MD_DigitalTransferOptions/gmd:onLine/gmd:CI_OnlineResource",
                 "gmd:distributionInfo/gmd:MD_Distribution/gmd:distributor/gmd:MD_Distributor/gmd:distributorTransferOptions/gmd:MD_DigitalTransferOptions/gmd:onLine/gmd:CI_OnlineResource",
+                # 19115-3
+                "mdb:distributionInfo/mrd:MD_Distribution/mrd:transferOptions/mrd:MD_DigitalTransferOptions/mrd:onLine/cit:CI_OnlineResource",
             ],
             multiplicity="*",
         ),
@@ -1259,18 +1302,18 @@ class ISODocument(MappedXmlDocument):
     def infer_temporal_vertical_extent(self, values):
         value = {}
         te = values.get('temporal-extent', [])
-        blist = (x.get('begin') for x in te)
-        elist = (x.get('end') for x in te)
-        if blist or elist:
-            value['begin'] = min(blist)
-            value['end'] = max(elist)
+        if te:
+            blist = (x.get('begin') for x in te)
+            elist = (x.get('end') for x in te)
+            value['begin'] = self.iso_date_time_to_utc(min(blist))[:10]
+            value['end'] = self.iso_date_time_to_utc(max(elist))[:10]
             values['temporal-extent'] = value
 
         value = {}
         te = values.get('vertical-extent', [])
-        minlist = (x.get('min') for x in te)
-        maxlist = (x.get('max') for x in te)
-        if minlist or maxlist:
+        if te:
+            minlist = (x.get('min') for x in te)
+            maxlist = (x.get('max') for x in te)
             value['min'] = min(minlist)
             value['max'] = max(maxlist)
             values['vertical-extent'] = value
@@ -1299,21 +1342,30 @@ class ISODocument(MappedXmlDocument):
         out = {}
 
         default = item.get('default').strip()
-        out.update({defaultLangKey: default})
+        if len(default) > 1:
+            out.update({defaultLangKey: default})
 
         local = item.get('local')
         if isinstance(local, dict):
             langKey = self.cleanLangKey(local.get('language_code'))
             # XML parser seems to decode utf-8 escape charicters in latin
             # even though the file is utf-8. To fix must encode unicode
-            # to latin1 then treet as regular utf-8 string.
+            # to latin1 then treet as regular utf-8 string. Seems this is not
+            # true for all files so trying latin1 and utf-8 if first does not decode
             if isinstance(langKey, unicode):
                 langKey = langKey.encode('latin1')
             LangValue = item.get('local').get('value')
             LangValue = LangValue.strip()
+            LangValue2 = LangValue
             if isinstance(LangValue, unicode):
-                LangValue = LangValue.encode('latin1')
-            out.update({langKey: LangValue})
+                try:
+                    LangValue2 = LangValue.encode('latin1')
+                    LangValue2.decode('utf-8')
+                except Exception:
+                    log.debug('Failed to decode latin1 encodid string "%r" as utf8, trying encoding as utf8', LangValue2)
+                    LangValue2 = LangValue.encode('utf-8')
+            if len(LangValue2) > 1:
+                out.update({langKey: LangValue2})
 
         return out
 
@@ -1339,6 +1391,7 @@ class ISODocument(MappedXmlDocument):
                     'keyword': json.dumps(LangDict),
                     'type': item.get('type')
                 })
+        log.debug('Keywords:%r', value)
         values['keywords'] = value
 
     def infer_multilinguale(self, values):
