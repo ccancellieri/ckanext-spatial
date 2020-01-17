@@ -147,7 +147,8 @@ class SpatialMetadata(p.SingletonPlugin):
                 'get_reference_date' : spatial_helpers.get_reference_date,
                 'get_responsible_party': spatial_helpers.get_responsible_party,
                 'get_common_map_config' : spatial_helpers.get_common_map_config,
-    'spatial_widget_expands': spatial_helpers.spatial_widget_expands,
+                'spatial_widget_expands': spatial_helpers.spatial_widget_expands,
+                'spatial_default_extent': spatial_helpers.spatial_default_extent,
                 }
 
 class SpatialQuery(p.SingletonPlugin):
@@ -157,6 +158,13 @@ class SpatialQuery(p.SingletonPlugin):
     p.implements(p.IConfigurable, inherit=True)
 
     search_backend = None
+
+    def update_config_schema(self, schema):
+
+        schema.update({
+            'ckanext.spatial.default_extent': [ignore_missing]
+        })
+        return schema
 
     def configure(self, config):
 

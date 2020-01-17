@@ -23,6 +23,15 @@ def spatial_widget_expands():
     value = p.toolkit.asbool(value)
     return value
 
+def spatial_default_extent():
+    '''Return the value of the ckanext.spatial.default_extent config setting.
+
+    :rtype: text
+
+    '''
+    value = config.get('ckanext.spatial.default_extent')
+    return value
+
 def get_reference_date(date_str):
     '''
         Gets a reference date extra created by the harvesters and formats it
