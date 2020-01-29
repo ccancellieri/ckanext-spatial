@@ -269,10 +269,20 @@ class SpatialQuery(p.SingletonPlugin):
         return pkg_dict
 
     def before_search(self, search_params):
-        from ckanext.spatial.lib import validate_bbox
+        from ckanext.spatial.lib import validate_bbox, validate_polygon
         from ckan.lib.search import SearchError
 
-        if search_params.get('extras', None) and search_params['extras'].get('ext_bbox', None):
+        if search_params.get('extras', None) and search_params['extras'].get('ext_poly', None):
+
+            poly = validate_polygon(search_params['extras']['ext_poly'])
+            if not poly:
+                raise SearchError('Wrong polygon provided. one of [POLYGON((x1 y1,x2 y2, ....)) '
+                                  '| MULTIPOLYGON(((x1 y1,x2 y2, ....)),((x1 y1,x2 y2, ....)))] '
+                                  '| BOX(minx,miny,maxx,maxy) expected')
+
+            search_params = self._params_for_postgis_search(poly, search_params)
+
+        elif search_params.get('extras', None) and search_params['extras'].get('ext_bbox', None):
 
             bbox = validate_bbox(search_params['extras']['ext_bbox'])
             if not bbox:
@@ -292,6 +302,8 @@ class SpatialQuery(p.SingletonPlugin):
                 search_params = self._params_for_solr_spatial_field_search(bbox, search_params)
             elif self.search_backend == 'postgis':
                 search_params = self._params_for_postgis_search(bbox, search_params)
+
+        log.debug('search_params after %r',search_params)
 
         return search_params
 
@@ -357,13 +369,14 @@ class SpatialQuery(p.SingletonPlugin):
         return search_params
 
     def _params_for_postgis_search(self, bbox, search_params):
-        from ckanext.spatial.lib import bbox_query, bbox_query_ordered
+        from ckanext.spatial.lib import bbox_query, bbox_query_ordered, polygon_query
         from ckan.lib.search import SearchError
 
         # Note: This will be deprecated at some point in favour of the
         # Solr 4 spatial sorting capabilities
         if search_params.get('sort') == 'spatial desc' and \
-           p.toolkit.asbool(config.get('ckanext.spatial.use_postgis_sorting', 'False')):
+           p.toolkit.asbool(config.get('ckanext.spatial.use_postgis_sorting', 'False')) and \
+           not (search_params.get('extras', None) and search_params['extras'].get('ext_poly', None)):
             if search_params['q'] or search_params['fq']:
                 raise SearchError('Spatial ranking cannot be mixed with other search parameters')
                 # ...because it is too inefficient to use SOLR to filter
@@ -386,7 +399,10 @@ class SpatialQuery(p.SingletonPlugin):
                 (extent.package_id, extent.spatial_ranking) \
                 for extent in extents[start:start + rows]]
         else:
-            extents = bbox_query(bbox)
+            if search_params.get('extras', None) and search_params['extras'].get('ext_poly', None):
+                extents = polygon_query(bbox)
+            else:
+                extents = bbox_query(bbox)
             are_no_results = extents.count() == 0
 
         if are_no_results:
