@@ -273,6 +273,7 @@ class ISOResponsibleParty(ISOElement):
             search_paths=[
                 "gmd:individualName/gco:CharacterString/text()",
                 "cit:party/cit:CI_Individual/cit:name/gco:CharacterString/text()",
+                "cit:party/cit:CI_Organisation/cit:individual/cit:CI_Individual/cit:name/gco:CharacterString/text()",
             ],
             multiplicity="0..1",
         ),
@@ -289,6 +290,7 @@ class ISOResponsibleParty(ISOElement):
             search_paths=[
                 "gmd:positionName/gco:CharacterString/text()",
                 "cit:party/cit:CI_Individual/cit:positionName/gco:CharacterString/text()",
+                "cit:party/cit:CI_Organisation/cit:individual/cit:CI_Individual/cit:positionName/gco:CharacterString/text()",
             ],
             multiplicity="0..1",
         ),
@@ -297,6 +299,7 @@ class ISOResponsibleParty(ISOElement):
             search_paths=[
                 "gmd:contactInfo/gmd:CI_Contact",
                 "cit:party/cit:CI_Individual/cit:contactInfo/cit:CI_Contact",
+                "cit:party/cit:CI_Organisation/cit:individual/cit:CI_Individual/cit:contactInfo/cit:CI_Contact",
                 "cit:party/cit:CI_Organisation/cit:contactInfo/cit:CI_Contact",
             ],
             multiplicity="0..1",
