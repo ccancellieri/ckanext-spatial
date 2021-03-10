@@ -817,19 +817,23 @@ class ISODocument(MappedXmlDocument):
             ],
             multiplicity="1..*",
         ),
-
+        ISOReferenceDate(
+            name="metadata-reference-date",
+            search_paths=[
+                # 19115-3
+                "mdb:dateInfo/cit:CI_Date",
+            ],
+            multiplicity="1..*",
+        ),
         ISOElement(
             name="metadata-date",
             search_paths=[
                 "gmd:dateStamp/gco:DateTime/text()",
                 "gmd:dateStamp/gco:Date/text()",
                 # 19115-3
-                "mdb:dateInfo/cit:CI_Date[cit:dateType/cit:CI_DateTypeCode/@codeListValue='creation']/cit:date/gco:Date/text()",
-                "mdb:dateInfo/cit:CI_Date[cit:dateType/cit:CI_DateTypeCode/text()='creation']/cit:date/gco:Date/text()",
-                "mdb:dateInfo/cit:CI_Date[cit:dateType/cit:CI_DateTypeCode/@codeListValue='creation']/cit:date/gco:DateTime/text()",
-                "mdb:dateInfo/cit:CI_Date[cit:dateType/cit:CI_DateTypeCode/text()='creation']/cit:date/gco:DateTime/text()",
+                "mdb:dateInfo/cit:CI_Date/cit:date/gco:Date/text() | mdb:dateInfo/cit:CI_Date/cit:date/gco:DateTime/text()",
             ],
-            multiplicity="1",
+            multiplicity="1..*",
         ),
         ISOElement(
             name="spatial-reference-system",
@@ -863,7 +867,7 @@ class ISODocument(MappedXmlDocument):
                 "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:citation/gmd:CI_Citation/gmd:date/gmd:CI_Date",
                 "gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:citation/gmd:CI_Citation/gmd:date/gmd:CI_Date",
                 # 19115-3
-                "mdb:dateInfo/cit:CI_Date",
+                "mdb:identificationInfo/mri:MD_DataIdentification/mri:citation/cit:CI_Citation/cit:CI_Date"
             ],
             multiplicity="1..*",
         ),
@@ -1210,30 +1214,6 @@ class ISODocument(MappedXmlDocument):
             ],
             multiplicity="*",
         ),
-        # ISOElement(
-        #     name="temporal-extent-begin",
-        #     search_paths=[
-        #         "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:extent/gmd:EX_Extent/gmd:temporalElement/gmd:EX_TemporalExtent/gmd:extent/gml:TimePeriod/gml:beginPosition/text()",
-        #         "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:extent/gmd:EX_Extent/gmd:temporalElement/gmd:EX_TemporalExtent/gmd:extent/gml32:TimePeriod/gml32:beginPosition/text()",
-        #         "gmd:identificationInfo/srv:SV_ServiceIdentification/srv:extent/gmd:EX_Extent/gmd:temporalElement/gmd:EX_TemporalExtent/gmd:extent/gml:TimePeriod/gml:beginPosition/text()",
-        #         "gmd:identificationInfo/srv:SV_ServiceIdentification/srv:extent/gmd:EX_Extent/gmd:temporalElement/gmd:EX_TemporalExtent/gmd:extent/gml32:TimePeriod/gml32:beginPosition/text()",
-        #         # 19115-3
-        #         "mdb:identificationInfo/*[contains(local-name(), 'Identification')]/mri:extent/gex:EX_Extent/gex:temporalElement/gex:EX_TemporalExtent/gex:extent/gml:TimePeriod/gml:beginPosition/text()"
-        #     ],
-        #     multiplicity="*",
-        # ),
-        # ISOElement(
-        #     name="temporal-extent-end",
-        #     search_paths=[
-        #         "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:extent/gmd:EX_Extent/gmd:temporalElement/gmd:EX_TemporalExtent/gmd:extent/gml:TimePeriod/gml:endPosition/text()",
-        #         "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:extent/gmd:EX_Extent/gmd:temporalElement/gmd:EX_TemporalExtent/gmd:extent/gml32:TimePeriod/gml32:endPosition/text()",
-        #         "gmd:identificationInfo/srv:SV_ServiceIdentification/srv:extent/gmd:EX_Extent/gmd:temporalElement/gmd:EX_TemporalExtent/gmd:extent/gml:TimePeriod/gml:endPosition/text()",
-        #         "gmd:identificationInfo/srv:SV_ServiceIdentification/srv:extent/gmd:EX_Extent/gmd:temporalElement/gmd:EX_TemporalExtent/gmd:extent/gml32:TimePeriod/gml32:endPosition/text()",
-        #         # 19115-3
-        #         "mdb:identificationInfo/*[contains(local-name(), 'Identification')]/mri:extent/gex:EX_Extent/gex:temporalElement/gex:EX_TemporalExtent/gex:extent/gml:TimePeriod/gml:endPosition/text()"
-        #     ],
-        #     multiplicity="*",
-        # ),
         ISOTemporalExtent(
             name="temporal-extent",
             search_paths=[
@@ -1256,26 +1236,6 @@ class ISODocument(MappedXmlDocument):
             ],
             multiplicity="*",
         ),
-        # ISOElement(
-        #     name="vertical-extent-min",
-        #     search_paths=[
-        #         "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:extent/gmd:EX_Extent/gmd:verticalElement/gmd:EX_VerticalExtent/gmd:minimumValue/gco:Real/text()",
-        #         "gmd:identificationInfo/srv:SV_ServiceIdentification/srv:extent/gmd:EX_Extent/gmd:verticalElement/gmd:EX_VerticalExtent/gmd:minimumValue/gco:Real/text()",
-        #         # 19115-3
-        #         "mdb:identificationInfo/*[contains(local-name(), 'Identification')]/mri:extent/gex:EX_Extent/gex:verticalElement/gex:EX_VerticalExtent/gex:minimumValue/gco:Real/text()",
-        #     ],
-        #     multiplicity="*",
-        # ),
-        # ISOElement(
-        #     name="vertical-extent-max",
-        #     search_paths=[
-        #         "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:extent/gmd:EX_Extent/gmd:verticalElement/gmd:EX_VerticalExtent/gmd:maximumValue/gco:Real/text()",
-        #         "gmd:identificationInfo/srv:SV_ServiceIdentification/srv:extent/gmd:EX_Extent/gmd:verticalElement/gmd:EX_VerticalExtent/gmd:maximumValue/gco:Real/text()",
-        #         # 19115-3
-        #         "mdb:identificationInfo/*[contains(local-name(), 'Identification')]/mri:extent/gex:EX_Extent/gex:verticalElement/gex:EX_VerticalExtent/gex:maximumValue/gco:Real/text()",
-        #     ],
-        #     multiplicity="*",
-        # ),
         ISOElement(
             name="vertical-extent-crs",
             search_paths=[
@@ -1414,6 +1374,7 @@ class ISODocument(MappedXmlDocument):
         self.infer_date_released(values)
         self.infer_date_updated(values)
         self.infer_date_created(values)
+        self.infer_metadata_date(values)
         self.infer_url(values)
         # Todo: Infer resources.
         self.infer_tags(values)
@@ -1616,7 +1577,7 @@ class ISODocument(MappedXmlDocument):
             if date['type'] == 'publication':
                 value = date['value']
                 break
-        values['date-released'] = value
+        values['dataset-released'] = value
 
     def infer_date_updated(self, values):
         value = ''
@@ -1630,7 +1591,7 @@ class ISODocument(MappedXmlDocument):
             if len(dates) > 1:
                 dates.sort(reverse=True)
             value = dates[0]
-        values['date-updated'] = value
+        values['dataset-updated'] = value
 
     def infer_date_created(self, values):
         value = ''
@@ -1638,7 +1599,15 @@ class ISODocument(MappedXmlDocument):
             if date['type'] == 'creation':
                 value = date['value']
                 break
-        values['date-created'] = value
+        values['dataset-created'] = value
+
+    def infer_metadata_date(self, values):
+        dates = values.get('metadata-date', [])
+
+        # use newest date in list
+        if len(dates):
+            dates.sort(reverse=True)
+            values['metadata-date'] = dates[0]
 
     def infer_url(self, values):
         value = ''
