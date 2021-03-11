@@ -1412,7 +1412,6 @@ class ISODocument(MappedXmlDocument):
         field = {}
         for lang in ['fr', 'en']:
             field[lang] = copy(value)
-            log.debug('Field:%r', field)
             title = field[lang]['title']
             field[lang]['title'] = title.get(lang)
             abstract = field[lang]['abstract']
