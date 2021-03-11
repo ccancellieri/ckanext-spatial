@@ -1362,13 +1362,16 @@ class ISODocument(MappedXmlDocument):
     ]
 
     def iso_date_time_to_utc(self, value):
+        value = value.replace("Z", "+0000")
         try:
-            value = value.replace("Z", "+0000")
-            utc_dt = datetime.datetime.strptime(value[:19], '%Y-%m-%dT%H:%M:%S') + datetime.timedelta(hours=int(value[20:22]), minutes=int(value[23:])) * (-1 if value[19] == '+' else 1)
-            return utc_dt.strftime('%Y-%m-%d %H:%M:%S')
-        except Exception as e:
-            log.debug('Could not convert datetime value %s to UTC: %s', value, e)
-            return value
+            utc_dt = datetime.datetime.strptime(value, '%Y-%m-%d')  # date alone is valid
+        except ValueError:
+            try:
+                utc_dt = datetime.datetime.strptime(value[:19], '%Y-%m-%dT%H:%M:%S') + datetime.timedelta(hours=int(value[20:22]), minutes=int(value[23:])) * (-1 if value[19] == '+' else 1)
+            except Exception as e:
+                log.debug('Could not convert datetime value %s to UTC: %s', value, e)
+                raise
+        return utc_dt.strftime('%Y-%m-%d %H:%M:%S')
 
     def infer_values(self, values):
         # Todo: Infer name.
@@ -1431,17 +1434,25 @@ class ISODocument(MappedXmlDocument):
         value = {}
         te = values.get('temporal-extent', [])
         if te:
-            blist = (x.get('begin') for x in te)
-            elist = (x.get('end') for x in te)
-            value['begin'] = self.iso_date_time_to_utc(min(blist))[:10]
-            value['end'] = self.iso_date_time_to_utc(max(elist))[:10]
+            blist = [x.get('begin') for x in te]
+            elist = [x.get('end') for x in te]
+            try:
+                value['begin'] = self.iso_date_time_to_utc(min(blist))[:10]
+                if max(elist):  # end is blank for datasets with ongoing collection
+                    value['end'] = self.iso_date_time_to_utc(max(elist))[:10]
+            except Exception as e:
+                value['begin'] = min(blist)[:10]
+                if max(elist):
+                    value['end'] = max(elist)[:10]
+                log.warn('Problem converting temporal-extent dates to utc format. Defaulting to %s and %s instead', value['begin'], value['end'])
+
             values['temporal-extent'] = value
 
         value = {}
         te = values.get('vertical-extent', [])
         if te:
-            minlist = (x.get('min') for x in te)
-            maxlist = (x.get('max') for x in te)
+            minlist = [x.get('min') for x in te]
+            maxlist = [x.get('max') for x in te]
             value['min'] = min(minlist)
             value['max'] = max(maxlist)
             values['vertical-extent'] = value
@@ -1500,6 +1511,7 @@ class ISODocument(MappedXmlDocument):
                 except Exception:
                     log.debug('Failed to decode latin1 encodid string "%r" as utf8, trying encoding as utf8', LangValue2)
                     LangValue2 = LangValue.encode('utf-8')
+                    log.debug('Encoding as utf8 was successful')
             if len(LangValue2) > 1:
                 out.update({langKey: LangValue2})
 
@@ -1567,7 +1579,12 @@ class ISODocument(MappedXmlDocument):
     def clean_dataset_reference_date(self, values):
         dates = []
         for date in values['dataset-reference-date']:
-            date['value'] = self.iso_date_time_to_utc(date['value'])[:10]
+            try:
+                date['value'] = self.iso_date_time_to_utc(date['value'])[:10]
+            except Exception as e:
+                date['value'] = date['value'][:10]
+                log.warn('Problem converting dataset-reference-date to utc format. Defaulting to %s instead', date['value'])
+
             dates.append(date)
         if dates:
             values['dataset-reference-date'] = dates
