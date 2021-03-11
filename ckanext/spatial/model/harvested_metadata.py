@@ -6,6 +6,7 @@ import pytz
 import datetime
 from ckan.lib.helpers import url_for
 from copy import copy
+from collections import OrderedDict
 import logging
 log = logging.getLogger(__name__)
 
@@ -715,6 +716,7 @@ class ISOCitation(ISOElement):
             search_paths=[
                 # 19115-3
                 "cit:citedResponsibleParty/cit:CI_Responsibility/cit:party/cit:CI_Individual/cit:name/gco:CharacterString[boolean(text())]/text()",
+                "cit:citedResponsibleParty/cit:CI_Responsibility/cit:party/cit:CI_Organisation/cit:individual/cit:CI_Individual/cit:name/gco:CharacterString[boolean(text())]/text()",
                 "cit:citedResponsibleParty/cit:CI_Responsibility/cit:party/cit:CI_Organisation/cit:name/gco:CharacterString[boolean(text())]/text()",
             ],
             multiplicity="1..*",
@@ -1398,7 +1400,7 @@ class ISODocument(MappedXmlDocument):
             value['issued'] = {"date-parts": [[str(dates[0])[:4]]]}
 
         value['id'] = self.calculate_guid(value['id'])
-        value['author'] = list(dict.fromkeys(value['author']))
+        value['author'] = list(OrderedDict.fromkeys(value['author']))
         value['author'] = [{"literal": x} for x in value['author']]
         defaultLangKey = self.cleanLangKey(values.get('metadata-language', 'en'))
         value['title'] = self.local_to_dict(value['title'], defaultLangKey)
