@@ -1417,18 +1417,26 @@ class ISODocument(MappedXmlDocument):
 
     def iso_date_time_to_utc(self, value):
         value = value.replace("Z", "+0000")
+        post_remove = 99
+        if re.search(r'[+-]\d{4}', value):
+            post_remove = -5
         try:
             utc_dt = datetime.datetime.strptime(value, '%Y-%m-%d')  # date alone is valid
         except ValueError:
             try:
-                utc_dt = datetime.datetime.strptime(value[:19], '%Y-%m-%dT%H:%M:%S') + datetime.timedelta(hours=int(value[20:22]), minutes=int(value[23:])) * (-1 if value[19] == '+' else 1)
+                utc_dt = datetime.datetime.strptime(value[:post_remove], '%Y-%m-%dT%H:%M:%S') + datetime.timedelta(hours=int(value[-5:][1:3]), minutes=int(value[-5:][-2:])) * (-1 if value[-5:][0] == '+' else 1)
             except Exception as e:
-                log.debug('Could not convert datetime value %s to UTC: %s', value, e)
-                raise
+                try:
+                    utc_dt = datetime.datetime.strptime(value[:post_remove], '%Y-%m-%dT%H:%M:%S.%f') + datetime.timedelta(hours=int(value[-5:][1:3]), minutes=int(value[-5:][-2:])) * (-1 if value[-5:][0] == '+' else 1)
+                except Exception as e:
+                    log.debug('Could not convert datetime value %s to UTC: %s', value, e)
+                    raise
         return utc_dt.strftime('%Y-%m-%d %H:%M:%S')
+
 
     def infer_values(self, values):
         # Todo: Infer name.
+        self.clean_metadata_reference_date(values)
         self.clean_dataset_reference_date(values)
         self.infer_date_released(values)
         self.infer_date_updated(values)
@@ -1634,6 +1642,15 @@ class ISODocument(MappedXmlDocument):
         if geom:
             values['spatial'] = geom.ExportToJson()
 
+    def clean_metadata_reference_date(self, values):
+        dates = []
+        for date in values['metadata-reference-date']:
+            date['value'] = self.iso_date_time_to_utc(date['value'])
+            dates.append(date)
+        if dates:
+            dates.sort(key=lambda x: x['value'])  # sort list of objects by value attribute
+            values['metadata-reference-date'] = dates
+
     def clean_dataset_reference_date(self, values):
         dates = []
         for date in values['dataset-reference-date']:
@@ -1645,6 +1662,7 @@ class ISODocument(MappedXmlDocument):
 
             dates.append(date)
         if dates:
+            dates.sort(key=lambda x: x['value'])  # sort list of objects by value attribute
             values['dataset-reference-date'] = dates
 
     def infer_date_released(self, values):
