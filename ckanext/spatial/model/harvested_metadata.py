@@ -1552,34 +1552,39 @@ class ISODocument(MappedXmlDocument):
         return key
 
     def local_to_dict(self, item, defaultLangKey):
+        # XML parser seems to generate unicode strings containg utf-8 escape
+        # charicters even though the file is utf-8. To fix must encode unicode
+        # to latin1 then treet as regular utf-8 string. Seems this is not
+        # true for all files so trying latin1 first and then utf-8 if it does
+        # not encode.
         out = {}
 
         default = item.get('default').strip()
+        if isinstance(default, unicode):
+            try:
+                default = default.encode('latin1')
+            except Exception:
+                default = default.encode('utf-8')
         if len(default) > 1:
             out.update({defaultLangKey: default})
 
         local = item.get('local')
         if isinstance(local, dict):
             langKey = self.cleanLangKey(local.get('language_code'))
-            # XML parser seems to decode utf-8 escape charicters in latin
-            # even though the file is utf-8. To fix must encode unicode
-            # to latin1 then treet as regular utf-8 string. Seems this is not
-            # true for all files so trying latin1 and utf-8 if first does not decode
             if isinstance(langKey, unicode):
                 langKey = langKey.encode('latin1')
+
             LangValue = item.get('local').get('value')
             LangValue = LangValue.strip()
-            LangValue2 = LangValue
             if isinstance(LangValue, unicode):
                 try:
-                    LangValue2 = LangValue.encode('latin1')
-                    LangValue2.decode('utf-8')
+                    LangValue = LangValue.encode('latin1')
                 except Exception:
-                    log.debug('Failed to decode latin1 encodid string "%r" as utf8, trying encoding as utf8', LangValue2)
-                    LangValue2 = LangValue.encode('utf-8')
+                    log.debug('Failed to encode string "%r" as latin1, trying encoding as utf8', LangValue)
+                    LangValue = LangValue.encode('utf-8')
                     log.debug('Encoding as utf8 was successful')
-            if len(LangValue2) > 1:
-                out.update({langKey: LangValue2})
+            if len(LangValue) > 1:
+                out.update({langKey: LangValue})
 
         return out
 
