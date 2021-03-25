@@ -1420,14 +1420,17 @@ class ISODocument(MappedXmlDocument):
         post_remove = 99
         if re.search(r'[+-]\d{4}', value):
             post_remove = -5
+            timedelta = datetime.timedelta(hours=int(value[-5:][1:3]), minutes=int(value[-5:][-2:])) * (-1 if value[-5:][0] == '+' else 1)
+        else:
+            timedelta = datetime.timedelta(hours=0, minutes=0)
         try:
             utc_dt = datetime.datetime.strptime(value, '%Y-%m-%d')  # date alone is valid
         except ValueError:
             try:
-                utc_dt = datetime.datetime.strptime(value[:post_remove], '%Y-%m-%dT%H:%M:%S') + datetime.timedelta(hours=int(value[-5:][1:3]), minutes=int(value[-5:][-2:])) * (-1 if value[-5:][0] == '+' else 1)
+                utc_dt = datetime.datetime.strptime(value[:post_remove], '%Y-%m-%dT%H:%M:%S') + timedelta
             except Exception as e:
                 try:
-                    utc_dt = datetime.datetime.strptime(value[:post_remove], '%Y-%m-%dT%H:%M:%S.%f') + datetime.timedelta(hours=int(value[-5:][1:3]), minutes=int(value[-5:][-2:])) * (-1 if value[-5:][0] == '+' else 1)
+                    utc_dt = datetime.datetime.strptime(value[:post_remove], '%Y-%m-%dT%H:%M:%S.%f') + timedelta
                 except Exception as e:
                     log.debug('Could not convert datetime value %s to UTC: %s', value, e)
                     raise
