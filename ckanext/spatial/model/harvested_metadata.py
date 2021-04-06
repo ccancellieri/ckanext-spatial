@@ -915,52 +915,6 @@ class ISODocument(MappedXmlDocument):
             multiplicity="1..*",
         ),
         ISOElement(
-            name="unique-metadata-identifier",
-            search_paths=[
-                # 19115-3
-                "mdb:metadataIdentifier/mcc:MD_Identifier",
-            ],
-            multiplicity="0..1",
-            elements=[
-                ISOElement(
-                    name="code",
-                    search_paths=[
-                        # ISO19115-3
-                        "mcc:code/gco:CharacterString/text()",
-                        "mcc:code/gcx:Anchor/text()",
-                    ],
-                    multiplicity="0..1",
-                ),
-                ISOElement(
-                    name="authority",
-                    search_paths=[
-                        # ISO19115-3
-                        "mcc:authority/cit:CI_Citation/cit:title/gco:CharacterString/text()",
-                        "mcc:authority/cit:CI_Citation/cit:title/gcx:Anchor/text()",
-                    ],
-                    multiplicity="0..1",
-                ),
-                ISOElement(
-                    name="code-space",
-                    search_paths=[
-                        # ISO19115-3
-                        "mcc:codeSpace/gco:CharacterString/text()",
-                        "mcc:codeSpace/gcx:Anchor/text()",
-                    ],
-                    multiplicity="0..1",
-                ),
-                ISOElement(
-                    name="version",
-                    search_paths=[
-                        # ISO19115-3
-                        "mcc:version/gco:CharacterString/text()",
-                        "mcc:version/gcx:Anchor/text()",
-                    ],
-                    multiplicity="0..1",
-                ),
-            ]
-        ),
-        ISOElement(
             name="unique-resource-identifier",
             search_paths=[
                 "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:citation/gmd:CI_Citation/gmd:identifier/gmd:MD_Identifier/gmd:code/gco:CharacterString/text()",
@@ -1481,7 +1435,6 @@ class ISODocument(MappedXmlDocument):
         if identifier:
             doi = self.calculate_identifier(identifier)
             if doi:
-                # value['DOI'] = re.sub(r'/http.*doi\.org\//', '', doi)
                 value['DOI'] = doi
         # TODO: could we have more then one doi?
 
