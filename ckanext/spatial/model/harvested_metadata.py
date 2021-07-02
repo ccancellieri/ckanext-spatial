@@ -269,7 +269,7 @@ class ISOResourceLocator(ISOElement):
             search_paths=[
                 "ancestor::mrd:MD_DigitalTransferOptions/mrd:distributionFormat/mrd:MD_Format/mrd:formatSpecificationCitation/cit:CI_Citation/cit:title/gco:CharacterString/text()"
             ],
-            multiplicity="0..*"
+            multiplicity="*"
         ),
 
         ISOElement(
@@ -277,7 +277,7 @@ class ISOResourceLocator(ISOElement):
             search_paths=[
                 "ancestor::mrd:MD_Distributor/mrd:distributorFormat/mrd:MD_Format/mrd:formatSpecificationCitation/cit:CI_Citation/cit:title/gco:CharacterString/text()"
             ],
-            multiplicity="0..*"
+            multiplicity="*"
         ),
 
         ISOElement(
@@ -285,7 +285,7 @@ class ISOResourceLocator(ISOElement):
             search_paths=[
                 "ancestor::mrd:MD_DigitalTransferOptions/mrd:offLine/mrd:MD_Medium/cit:CI_Citation/cit:title/gco:CharacterString/text()"
             ],
-            multiplicity="0..*"
+            multiplicity="*"
         ),
         ISOElement(
             name="transfer-size",
@@ -702,6 +702,8 @@ class ISOAggregationInfo(ISOElement):
             name="aggregate-dataset-name",
             search_paths=[
                 "gmd:aggregateDatasetName/gmd:CI_Citation/gmd:title/gco:CharacterString/text()",
+                # ISO19115-3
+                "mri:name/cit:CI_Citation/cit:title/gco:CharacterString/text()"
             ],
             multiplicity="0..1",
         ),
@@ -709,6 +711,8 @@ class ISOAggregationInfo(ISOElement):
             name="aggregate-dataset-identifier",
             search_paths=[
                 "gmd:aggregateDatasetIdentifier/gmd:MD_Identifier/gmd:code/gco:CharacterString/text()",
+                # ISO19115-3
+                "mri:name/cit:CI_Citation/cit:identifier/mcc:MD_Identifier/mcc:code/gco:CharacterString/text()"
             ],
             multiplicity="0..1",
         ),
@@ -717,6 +721,9 @@ class ISOAggregationInfo(ISOElement):
             search_paths=[
                 "gmd:associationType/gmd:DS_AssociationTypeCode/@codeListValue",
                 "gmd:associationType/gmd:DS_AssociationTypeCode/text()",
+                # ISO19115-3
+                "mri:associationType/mri:DS_AssociationTypeCode/@codeListValue",
+                "mri:associationType/mri:DS_AssociationTypeCode/text()"
             ],
             multiplicity="0..1",
         ),
@@ -725,6 +732,9 @@ class ISOAggregationInfo(ISOElement):
             search_paths=[
                 "gmd:initiativeType/gmd:DS_InitiativeTypeCode/@codeListValue",
                 "gmd:initiativeType/gmd:DS_InitiativeTypeCode/text()",
+                # ISO19115-3
+                "mri:initiativeType/mri:DS_InitiativeTypeCode/@codeListValue",
+                "mri:initiativeType/mri:DS_InitiativeTypeCode/text()",
             ],
             multiplicity="0..1",
         ),
@@ -1172,6 +1182,8 @@ class ISODocument(MappedXmlDocument):
             search_paths=[
                 "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:aggregationInfo/gmd:MD_AggregateInformation",
                 "gmd:identificationInfo/gmd:SV_ServiceIdentification/gmd:aggregationInfo/gmd:MD_AggregateInformation",
+                # ISO19115-3
+                "mdb:identificationInfo/*[contains(local-name(), 'Identification')]/mri:associatedResource/mri:MD_AssociatedResource"
             ],
             multiplicity="*",
         ),
@@ -1605,7 +1617,6 @@ class ISODocument(MappedXmlDocument):
             # decode double escaped unicode chars
             if(LangValue and re.search(r'\\\\u[0-9a-fA-F]{4}', LangValue)):
                 LangValue = LangValue.decode("raw_unicode_escape")
-
             if isinstance(LangValue, unicode):
                 try:
                     LangValue = LangValue.encode('utf-8')
