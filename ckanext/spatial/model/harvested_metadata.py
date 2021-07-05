@@ -269,7 +269,7 @@ class ISOResourceLocator(ISOElement):
             search_paths=[
                 "ancestor::mrd:MD_DigitalTransferOptions/mrd:distributionFormat/mrd:MD_Format/mrd:formatSpecificationCitation/cit:CI_Citation/cit:title/gco:CharacterString/text()"
             ],
-            multiplicity="0..*"
+            multiplicity="*"
         ),
 
         ISOElement(
@@ -277,7 +277,7 @@ class ISOResourceLocator(ISOElement):
             search_paths=[
                 "ancestor::mrd:MD_Distributor/mrd:distributorFormat/mrd:MD_Format/mrd:formatSpecificationCitation/cit:CI_Citation/cit:title/gco:CharacterString/text()"
             ],
-            multiplicity="0..*"
+            multiplicity="*"
         ),
 
         ISOElement(
@@ -285,7 +285,7 @@ class ISOResourceLocator(ISOElement):
             search_paths=[
                 "ancestor::mrd:MD_DigitalTransferOptions/mrd:offLine/mrd:MD_Medium/cit:CI_Citation/cit:title/gco:CharacterString/text()"
             ],
-            multiplicity="0..*"
+            multiplicity="*"
         ),
         ISOElement(
             name="transfer-size",
@@ -799,21 +799,20 @@ class ISOCitation(ISOElement):
                 ),
             ]
         ),
-        ISOElement(
+        ISOResponsibleParty(
             name="author",
             search_paths=[
                 # 19115-3
-                "cit:citedResponsibleParty/cit:CI_Responsibility/cit:party/cit:CI_Individual/cit:name/gco:CharacterString[boolean(text())]/text()",
-                "cit:citedResponsibleParty/cit:CI_Responsibility/cit:party/cit:CI_Organisation/cit:individual/cit:CI_Individual/cit:name/gco:CharacterString[boolean(text())]/text()",
-                "cit:citedResponsibleParty/cit:CI_Responsibility/cit:party/cit:CI_Organisation/cit:name/gco:CharacterString[boolean(text())]/text()",
+                "cit:citedResponsibleParty/cit:CI_Responsibility"
             ],
             multiplicity="1..*",
         ),
-        ISOElement(
+        ISOReferenceDate(
             name="issued",
             search_paths=[
                 # 19115-3
-                "ancestor::mdb:MD_Metadata/mdb:dateInfo/cit:CI_Date/cit:date/gco:Date/text() | ancestor::mdb:MD_Metadata/mdb:dateInfo/cit:CI_Date/cit:date/gco:DateTime/text()"
+                "ancestor::mdb:MD_Metadata/mdb:identificationInfo/mri:MD_DataIdentification/mri:citation/cit:CI_Citation/cit:date/cit:CI_Date[cit:dateType/cit:CI_DateTypeCode/@codeListValue != 'creation']",
+                "ancestor::mdb:MD_Metadata/mdb:dateInfo/cit:CI_Date"
             ],
             multiplicity="1..*",
         ),
@@ -826,7 +825,7 @@ class ISOCitation(ISOElement):
             ],
             multiplicity="1",
         ),
-        ISOResponsibleParty(
+        ISOElement(
             name="publisher",
             search_paths=[
                 # 19115-3
@@ -1470,11 +1469,32 @@ class ISODocument(MappedXmlDocument):
         if len(value['issued']):
             dates = value['issued']
             dates.sort(reverse=True)
-            value['issued'] = {"date-parts": [[str(dates[0])[:4]]]}
-
+            issued_date = str(dates[0]['value'])
+            value['issued'] = [{"date-parts": [issued_date[:4], issued_date[5:7], issued_date[8:10]]}]
         value['id'] = self.calculate_identifier(value['id'])
-        value['author'] = list(OrderedDict.fromkeys(value['author']))
-        value['author'] = [{"literal": x} for x in value['author']]
+
+        # remove duplicate entries
+        author_list = [
+            {"individual-name": x['individual-name'],
+             "organisation-name": x['organisation-name'],
+            } for x in value['author']]
+        author_list = [i for n, i in enumerate(author_list) if i not in author_list[n + 1:]]
+
+        #clear author list
+        value['author'] = []
+
+        for author in author_list:
+            ind = author.get('individual-name')
+            org = author.get('organisation-name')
+            if ind:
+                name_list = ind.split()
+                value['author'].append({
+                    "given": ' '.join(name_list[0:-1]),
+                    "family": name_list[-1]
+                })
+            else:
+                value['author'].append({"literal": org})
+
         defaultLangKey = self.cleanLangKey(values.get('metadata-language', 'en'))
         value['title'] = self.local_to_dict(value['title'], defaultLangKey)
         value['abstract'] = self.local_to_dict(value['abstract'], defaultLangKey)
@@ -1482,7 +1502,7 @@ class ISODocument(MappedXmlDocument):
         identifier = values.get('unique-resource-identifier-full', {})
         if identifier:
             doi = self.calculate_identifier(identifier)
-            if doi:
+            if doi and re.match(r'^10.\d{4,9}\/[-._;()/:A-Z0-9]+$', doi, re.IGNORECASE):
                 value['DOI'] = doi
         # TODO: could we have more then one doi?
 
@@ -1502,6 +1522,12 @@ class ISODocument(MappedXmlDocument):
                 qualified=True
             )
             field[lang] = json.dumps([field[lang]])
+            # the dump converts utf-8 escape sequences to unicode escape
+            # sequences so we have to convert back again
+            if(field[lang] and re.search(r'\\u[0-9a-fA-F]{4}', field[lang])):
+                field[lang] = field[lang].decode("raw_unicode_escape")
+            # double escape any double quotes that are already escaped
+            field[lang] = field[lang].replace('\"', '\\"')
         values['citation'] = json.dumps(field)
 
     def infer_temporal_vertical_extent(self, values):
@@ -1568,7 +1594,6 @@ class ISODocument(MappedXmlDocument):
         # not encode.
         out = {}
 
-        log.debug('%r', item)
         default = item.get('default').strip()
         # decode double escaped unicode chars
         if(default and re.search(r'\\\\u[0-9a-fA-F]{4}', default)):
@@ -1592,8 +1617,6 @@ class ISODocument(MappedXmlDocument):
             # decode double escaped unicode chars
             if(LangValue and re.search(r'\\\\u[0-9a-fA-F]{4}', LangValue)):
                 LangValue = LangValue.decode("raw_unicode_escape")
-
-            log.debug('%r', LangValue)
             if isinstance(LangValue, unicode):
                 try:
                     LangValue = LangValue.encode('utf-8')

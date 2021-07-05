@@ -746,8 +746,8 @@ class SpatialHarvester(HarvesterBase):
             except p.toolkit.ValidationError, e:
                 # call refresh() on every instance this fixes issues [151](https://github.com/ckan/ckanext-harvest/issues/151) and [262](https://github.com/ckan/ckanext-harvest/issues/262)
                 for s in iter(model.Session):
-                    model.Session.refresh(s)
-                self._save_object_error('Validation Error: %s' % str(e.error_summary), harvest_object, 'Import')
+                   model.Session.refresh(s)
+                self._save_object_error('Validation Error: %s' % str(e.error_dict), harvest_object, 'Import')
                 return False
 
         elif status == 'change':
@@ -797,7 +797,7 @@ class SpatialHarvester(HarvesterBase):
                     # call refresh() on every instance this fixes issues [151](https://github.com/ckan/ckanext-harvest/issues/151) and [262](https://github.com/ckan/ckanext-harvest/issues/262)
                     for s in iter(model.Session):
                         model.Session.refresh(s)
-                    self._save_object_error('Validation Error: %s' % str(e.error_summary), harvest_object, 'Import')
+                    self._save_object_error('Validation Error: %s' % str(e.error_dict), harvest_object, 'Import')
                     return False
 
         model.Session.commit()

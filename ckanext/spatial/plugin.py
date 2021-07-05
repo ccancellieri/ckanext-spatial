@@ -304,8 +304,6 @@ class SpatialQuery(p.SingletonPlugin):
             elif self.search_backend == 'postgis':
                 search_params = self._params_for_postgis_search(bbox, search_params)
 
-        log.debug('search_params after %r',search_params)
-
         return search_params
 
     def _params_for_solr_search(self, bbox, search_params):
