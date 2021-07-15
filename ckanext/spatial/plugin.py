@@ -335,7 +335,7 @@ class SpatialQuery(p.SingletonPlugin):
             x22='maxx',
             y21='miny',
             y22='maxy',
-            area_search=abs(bbox['maxx'] - bbox['minx']) * abs(bbox['maxy'] - bbox['miny'])
+            area_search = abs(bbox['maxx'] - bbox['minx']) * abs(bbox['maxy'] - bbox['miny'])
         )
 
         bf = '''div(
@@ -413,6 +413,7 @@ class SpatialQuery(p.SingletonPlugin):
             bbox_query_ids = [extent.package_id for extent in extents]
 
             q = search_params.get('q','').strip() or '""'
+            # Note: `"" AND` query doesn't work in github ci
             new_q = '%s AND ' % q if q else ''
             new_q += '(%s)' % ' OR '.join(['id:%s' % id for id in bbox_query_ids])
 

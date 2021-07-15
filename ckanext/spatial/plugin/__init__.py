@@ -161,14 +161,25 @@ class SpatialMetadata(p.SingletonPlugin):
                 'get_reference_date' : spatial_helpers.get_reference_date,
                 'get_responsible_party': spatial_helpers.get_responsible_party,
                 'get_common_map_config' : spatial_helpers.get_common_map_config,
+                'spatial_widget_expands': spatial_helpers.spatial_widget_expands,
+                'spatial_default_extent': spatial_helpers.spatial_default_extent,
+                'spatial_get_map_initial_max_zoom': spatial_helpers.spatial_get_map_initial_max_zoom
                 }
 
 class SpatialQuery(SpatialQueryMixin, p.SingletonPlugin):
 
+    p.implements(p.IRoutes, inherit=True)
     p.implements(p.IPackageController, inherit=True)
     p.implements(p.IConfigurable, inherit=True)
 
     search_backend = None
+
+def update_config_schema(self, schema):
+
+    schema.update({
+        'ckanext.spatial.default_extent': [ignore_missing]
+    })
+    return schema
 
     def configure(self, config):
 
@@ -177,6 +188,13 @@ class SpatialQuery(SpatialQueryMixin, p.SingletonPlugin):
             msg = 'The Solr backends for the spatial search require CKAN 2.0.1 or higher. ' + \
                   'Please upgrade CKAN or select the \'postgis\' backend.'
             raise tk.CkanVersionException(msg)
+
+    def before_map(self, map):
+
+        map.connect('api_spatial_query', '/api/2/search/{register:dataset|package}/geo',
+            controller='ckanext.spatial.controllers.api:ApiController',
+            action='spatial_query')
+        return map
 
     def before_index(self, pkg_dict):
         import shapely
@@ -194,6 +212,20 @@ class SpatialQuery(SpatialQueryMixin, p.SingletonPlugin):
                 if not (geometry['type'] == 'Polygon'
                    and len(geometry['coordinates']) == 1
                    and len(geometry['coordinates'][0]) == 5):
+                    try:
+                        log.debug('Coercing geometry into bbox(5 point polygon)')
+                        geom = shapely.geometry.shape(geometry)
+                        minx, miny, maxx, maxy = geom.bounds
+                        if (geometry['type'] == 'Point'):
+                            # offset points by 1 meter
+                            minx = minx - 0.00001
+                            miny = miny - 0.00001
+                            maxx = maxx + 0.00001
+                            maxy = maxy + 0.00001
+                        poly = shapely.geometry.Polygon([(minx, miny), (minx, maxy), (maxx, maxy), (maxx, miny), (minx, miny)])  # generate polygon from bounds
+                        geometry = shapely.geometry.mapping(poly)
+                    except Exception as e:
+                        log.error(e)
                     log.error('Solr backend only supports bboxes (Polygons with 5 points), ignoring geometry {0}'.format(pkg_dict['extras_spatial']))
                     return pkg_dict
 
@@ -241,10 +273,20 @@ class SpatialQuery(SpatialQueryMixin, p.SingletonPlugin):
         return pkg_dict
 
     def before_search(self, search_params):
-        from ckanext.spatial.lib import  validate_bbox
+        from ckanext.spatial.lib import  validate_bbox, validate_polygon
         from ckan.lib.search import SearchError
 
-        if search_params.get('extras', None) and search_params['extras'].get('ext_bbox', None):
+        if search_params.get('extras', None) and search_params['extras'].get('ext_poly', None):
+
+            poly = validate_polygon(search_params['extras']['ext_poly'])
+            if not poly:
+                raise SearchError('Wrong polygon provided. one of [POLYGON((x1 y1,x2 y2, ....)) '
+                                  '| MULTIPOLYGON(((x1 y1,x2 y2, ....)),((x1 y1,x2 y2, ....)))] '
+                                  '| BOX(minx,miny,maxx,maxy) expected')
+
+            search_params = self._params_for_postgis_search(poly, search_params)
+
+        elif search_params.get('extras', None) and search_params['extras'].get('ext_bbox', None):
 
             bbox = validate_bbox(search_params['extras']['ext_bbox'])
             if not bbox:
@@ -287,7 +329,7 @@ class SpatialQuery(SpatialQueryMixin, p.SingletonPlugin):
 
         '''
 
-        variables =dict(
+        variables = dict(
             x11=bbox['minx'],
             x12=bbox['maxx'],
             y11=bbox['miny'],
@@ -296,7 +338,7 @@ class SpatialQuery(SpatialQueryMixin, p.SingletonPlugin):
             x22='maxx',
             y21='miny',
             y22='maxy',
-            area_search = abs(bbox['maxx'] - bbox['minx']) * abs(bbox['maxy'] - bbox['miny'])
+            area_search=abs(bbox['maxx'] - bbox['minx']) * abs(bbox['maxy'] - bbox['miny'])
         )
 
         bf = '''div(
@@ -306,7 +348,7 @@ class SpatialQuery(SpatialQueryMixin, p.SingletonPlugin):
                        ),
                    2),
                    add({area_search}, mul(sub({y22}, {y21}), sub({x22}, {x21})))
-                )'''.format(**variables).replace('\n','').replace(' ','')
+                )'''.format(**variables).replace('\n', '').replace(' ', '')
 
         search_params['fq_list'] = ['{!frange incl=false l=0 u=1}%s' % bf]
 
@@ -329,13 +371,14 @@ class SpatialQuery(SpatialQueryMixin, p.SingletonPlugin):
         return search_params
 
     def _params_for_postgis_search(self, bbox, search_params):
-        from ckanext.spatial.lib import   bbox_query, bbox_query_ordered
+        from ckanext.spatial.lib import bbox_query, bbox_query_ordered, polygon_query
         from ckan.lib.search import SearchError
 
         # Note: This will be deprecated at some point in favour of the
         # Solr 4 spatial sorting capabilities
         if search_params.get('sort') == 'spatial desc' and \
-           tk.asbool(config.get('ckanext.spatial.use_postgis_sorting', 'False')):
+           tk.asbool(config.get('ckanext.spatial.use_postgis_sorting', 'False')) and \
+           not (search_params.get('extras', None) and search_params['extras'].get('ext_poly', None)):
             if search_params['q'] or search_params['fq']:
                 raise SearchError('Spatial ranking cannot be mixed with other search parameters')
                 # ...because it is too inefficient to use SOLR to filter
@@ -349,7 +392,7 @@ class SpatialQuery(SpatialQueryMixin, p.SingletonPlugin):
             # they are in the wrong order anyway. We just need this SOLR
             # query to get the count and facet counts.
             rows = 0
-            search_params['sort'] = None # SOLR should not sort.
+            search_params['sort'] = None  # SOLR should not sort.
             # Store the rankings of the results for this page, so for
             # after_search to construct the correctly sorted results
             rows = search_params['extras']['ext_rows'] = search_params['rows']
@@ -358,6 +401,9 @@ class SpatialQuery(SpatialQueryMixin, p.SingletonPlugin):
                 (extent.package_id, extent.spatial_ranking) \
                 for extent in extents[start:start+rows]]
         else:
+            if search_params.get('extras', {}).get('ext_poly'):
+                extents = polygon_query(bbox)
+            else:
             extents = bbox_query(bbox)
             are_no_results = extents.count() == 0
 
