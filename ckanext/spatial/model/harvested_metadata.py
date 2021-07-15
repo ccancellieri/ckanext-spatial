@@ -7,6 +7,8 @@ import datetime
 from ckan.lib.helpers import url_for
 from copy import copy
 from collections import OrderedDict
+import six
+
 import logging
 log = logging.getLogger(__name__)
 
@@ -44,10 +46,7 @@ class MappedXmlDocument(MappedXmlObject):
     def get_xml_tree(self):
         if self.xml_tree is None:
             parser = etree.XMLParser(remove_blank_text=True)
-            if type(self.xml_str) == unicode:
-                xml_str = self.xml_str.encode('utf8')
-            else:
-                xml_str = self.xml_str
+            xml_str = six.ensure_str(self.xml_str)
             self.xml_tree = etree.fromstring(xml_str, parser=parser)
         return self.xml_tree
 
@@ -108,7 +107,7 @@ class MappedXmlElement(MappedXmlObject):
         elif type(element) == etree._ElementStringResult:
             value = str(element)
         elif type(element) == etree._ElementUnicodeResult:
-            value = unicode(element)
+            value = str(element)
         else:
             value = self.element_tostring(element)
         return value
@@ -225,6 +224,7 @@ class ISOResourceLocator(ISOElement):
             name="name",
             search_paths=[
                 "gmd:name/gco:CharacterString/text()",
+                "gmd:name/gmx:MimeFileType/text()",
                 # 19115-3
                 "cit:name/gco:CharacterString/text()",
             ],
@@ -856,6 +856,7 @@ class ISODocument(MappedXmlDocument):
             search_paths=[
                 "gmd:language/gmd:LanguageCode/@codeListValue",
                 "gmd:language/gmd:LanguageCode/text()",
+                "gmd:language/gco:CharacterString/text()",
                 # 19115-3
                 "mdb:defaultLocale/lan:PT_Locale/lan:language/lan:LanguageCode/@codeListValue",
                 "mdb:defaultLocale/lan:PT_Locale/lan:language/lan:LanguageCode/text()",
@@ -1784,7 +1785,7 @@ class ISODocument(MappedXmlDocument):
         for responsible_party in values['responsible-organisation']:
             if isinstance(responsible_party, dict) and \
                isinstance(responsible_party.get('contact-info'), dict) and \
-               responsible_party['contact-info'].has_key('email'):
+               'email' in responsible_party['contact-info']:
                 value = responsible_party['contact-info']['email']
                 if value:
                     break
