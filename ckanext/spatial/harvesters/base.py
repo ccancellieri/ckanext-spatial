@@ -149,18 +149,18 @@ class SpatialHarvester(HarvesterBase):
 
         try:
             http_response = urllib2.urlopen(http_request)
-        except urllib2.HTTPError, e:
+        except urllib2.HTTPError as e:
             if e.getcode() == 404:
                 raise ContentNotFoundError('HTTP error: %s' % e.code)
             else:
                 raise ContentFetchError('HTTP error: %s' % e.code)
-        except urllib2.URLError, e:
+        except urllib2.URLError as e:
             raise ContentFetchError('URL error: %s' % e.reason)
-        except httplib.HTTPException, e:
+        except httplib.HTTPException as e:
             raise ContentFetchError('HTTP Exception: %s' % e)
-        except socket.error, e:
+        except socket.error as e:
             raise ContentFetchError('HTTP socket error: %s' % e)
-        except Exception, e:
+        except Exception as e:
             raise ContentFetchError('HTTP general exception: %s' % e)
         return http_response.read()
 
@@ -344,7 +344,7 @@ class SpatialHarvester(HarvesterBase):
                     org = logic.get_action('organization_show')(base_context.copy(), data_dict)
                     validated_org = org['id']
                     log.info("Found organization %s" , remote_org_clean)
-                except logic.NotFound, e:
+                except logic.NotFound as e:
                     log.info('Organization %s is not available', remote_org)
                     if remote_orgs == 'create':
                         try:
