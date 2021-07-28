@@ -8,6 +8,7 @@ from ckan.lib.helpers import url_for
 from copy import copy
 from collections import OrderedDict
 import logging
+import ckan.lib.munge as munge
 log = logging.getLogger(__name__)
 
 
@@ -1485,7 +1486,7 @@ class ISODocument(MappedXmlDocument):
             field[lang]['URL'] = url_for(
                 controller='package',
                 action='read',
-                id=values.get('guid', ''),
+                id=munge.munge_name(values.get('guid', '')),
                 local=lang,
                 qualified=True
             )
