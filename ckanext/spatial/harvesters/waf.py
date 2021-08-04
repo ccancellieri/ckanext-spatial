@@ -96,7 +96,7 @@ class WAFHarvester(SpatialHarvester, SingletonPlugin):
                         log.warning('Group %s from category %s is not available' % (groupname, cat))
         except Exception as e:
             log.warning('Error handling groups for metadata %s' % harvest_object.guid)
-	    log.error('%s',e)
+            log.error('%s',e)
 
         return validated_groups
 
@@ -348,8 +348,8 @@ def _extract_waf(content, base_url, scraper, results = None, depth=0):
     for record in parsed:
         url = record.url
 
-	if '&#' in url:
-	    h = HTMLParser()
+        if '&#' in url:
+            h = HTMLParser()
             url=h.unescape(url)
             record.url = url
 

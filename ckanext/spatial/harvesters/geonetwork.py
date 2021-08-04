@@ -46,9 +46,8 @@ for element in ISODocument.elements:
         element.search_paths.append(newpath)
         log.info("Added old URI for gml to %s", element.name)
 
-class GeoNetworkHarvester(CSWHarvester, SingletonPlugin):
 
-    #p.implements(ISpatialHarvester, inherit=True)
+class GeoNetworkHarvester(CSWHarvester, SingletonPlugin):
 
     def info(self):
         return {

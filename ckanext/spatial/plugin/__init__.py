@@ -46,6 +46,7 @@ def check_geoalchemy_requirement():
         except ImportError:
             raise ImportError(msg.format('geoalchemy'))
 
+
 check_geoalchemy_requirement()
 
 log = getLogger(__name__)
@@ -71,6 +72,7 @@ def package_error_summary(error_dict):
         else:
             summary[tk._(prettify(key))] = error[0]
     return summary
+
 
 class SpatialMetadata(p.SingletonPlugin):
 
@@ -105,7 +107,7 @@ class SpatialMetadata(p.SingletonPlugin):
     def edit(self, package):
         self.check_spatial_extra(package)
 
-    def check_spatial_extra(self,package):
+    def check_spatial_extra(self, package):
         '''
         For a given package, looks at the spatial extent (as given in the
         extra "spatial" in GeoJSON format) and records it in PostGIS.
@@ -124,47 +126,47 @@ class SpatialMetadata(p.SingletonPlugin):
                         log.debug('Received: %r' % extra.value)
                         geometry = json.loads(extra.value)
                     except ValueError as e:
-                        error_dict = {'spatial':[u'Error decoding JSON object: %s' % six.text_type(e)]}
+                        error_dict = {'spatial': [u'Error decoding JSON object: %s' % six.text_type(e)]}
                         raise tk.ValidationError(error_dict, error_summary=package_error_summary(error_dict))
                     except TypeError as e:
-                        error_dict = {'spatial':[u'Error decoding JSON object: %s' % six.text_type(e)]}
+                        error_dict = {'spatial': [u'Error decoding JSON object: %s' % six.text_type(e)]}
                         raise tk.ValidationError(error_dict, error_summary=package_error_summary(error_dict))
 
                     try:
-                        save_package_extent(package.id,geometry)
+                        save_package_extent(package.id, geometry)
 
                     except ValueError as e:
-                        error_dict = {'spatial':[u'Error creating geometry: %s' % six.text_type(e)]}
+                        error_dict = {'spatial': [u'Error creating geometry: %s' % six.text_type(e)]}
                         raise tk.ValidationError(error_dict, error_summary=package_error_summary(error_dict))
                     except Exception as e:
                         if bool(os.getenv('DEBUG')):
                             raise
-                        error_dict = {'spatial':[u'Error: %s' % six.text_type(e)]}
+                        error_dict = {'spatial': [u'Error: %s' % six.text_type(e)]}
                         raise tk.ValidationError(error_dict, error_summary=package_error_summary(error_dict))
 
                 elif (extra.state == 'active' and not extra.value) or extra.state == 'deleted':
                     # Delete extent from table
-                    save_package_extent(package.id,None)
+                    save_package_extent(package.id, None)
 
                 break
 
-
     def delete(self, package):
         from ckanext.spatial.lib import save_package_extent
-        save_package_extent(package.id,None)
+        save_package_extent(package.id, None)
 
-    ## ITemplateHelpers
+    # ITemplateHelpers
 
     def get_helpers(self):
         from ckanext.spatial import helpers as spatial_helpers
         return {
-                'get_reference_date' : spatial_helpers.get_reference_date,
+                'get_reference_date': spatial_helpers.get_reference_date,
                 'get_responsible_party': spatial_helpers.get_responsible_party,
-                'get_common_map_config' : spatial_helpers.get_common_map_config,
+                'get_common_map_config': spatial_helpers.get_common_map_config,
                 'spatial_widget_expands': spatial_helpers.spatial_widget_expands,
                 'spatial_default_extent': spatial_helpers.spatial_default_extent,
                 'spatial_get_map_initial_max_zoom': spatial_helpers.spatial_get_map_initial_max_zoom
                 }
+
 
 class SpatialQuery(SpatialQueryMixin, p.SingletonPlugin):
 
@@ -174,26 +176,24 @@ class SpatialQuery(SpatialQueryMixin, p.SingletonPlugin):
 
     search_backend = None
 
-def update_config_schema(self, schema):
+    def update_config_schema(self, schema):
+        schema.update({
+            'ckanext.spatial.default_extent': [ignore_missing]
+        })
+        return schema
 
-    schema.update({
-        'ckanext.spatial.default_extent': [ignore_missing]
-    })
-    return schema
+        def configure(self, config):
 
-    def configure(self, config):
-
-        self.search_backend = config.get('ckanext.spatial.search_backend', 'postgis')
-        if self.search_backend != 'postgis' and not tk.check_ckan_version('2.0.1'):
-            msg = 'The Solr backends for the spatial search require CKAN 2.0.1 or higher. ' + \
-                  'Please upgrade CKAN or select the \'postgis\' backend.'
-            raise tk.CkanVersionException(msg)
+            self.search_backend = config.get('ckanext.spatial.search_backend', 'postgis')
+            if self.search_backend != 'postgis' and not tk.check_ckan_version('2.0.1'):
+                msg = 'The Solr backends for the spatial search require CKAN 2.0.1 or higher. ' + \
+                      'Please upgrade CKAN or select the \'postgis\' backend.'
+                raise tk.CkanVersionException(msg)
 
     def before_map(self, map):
-
         map.connect('api_spatial_query', '/api/2/search/{register:dataset|package}/geo',
-            controller='ckanext.spatial.controllers.api:ApiController',
-            action='spatial_query')
+                    controller='ckanext.spatial.controllers.api:ApiController',
+                    action='spatial_query')
         return map
 
     def before_index(self, pkg_dict):
@@ -269,11 +269,10 @@ def update_config_schema(self, schema):
 
                 pkg_dict['spatial_geom'] = wkt
 
-
         return pkg_dict
 
     def before_search(self, search_params):
-        from ckanext.spatial.lib import  validate_bbox, validate_polygon
+        from ckanext.spatial.lib import validate_bbox, validate_polygon
         from ckan.lib.search import SearchError
 
         if search_params.get('extras', None) and search_params['extras'].get('ext_poly', None):
@@ -398,13 +397,13 @@ def update_config_schema(self, schema):
             rows = search_params['extras']['ext_rows'] = search_params['rows']
             start = search_params['extras']['ext_start'] = search_params['start']
             search_params['extras']['ext_spatial'] = [
-                (extent.package_id, extent.spatial_ranking) \
-                for extent in extents[start:start+rows]]
+                (extent.package_id, extent.spatial_ranking)
+                for extent in extents[start:start + rows]]
         else:
             if search_params.get('extras', {}).get('ext_poly'):
                 extents = polygon_query(bbox)
             else:
-            extents = bbox_query(bbox)
+                extents = bbox_query(bbox)
             are_no_results = extents.count() == 0
 
         if are_no_results:
@@ -415,7 +414,7 @@ def update_config_schema(self, schema):
             # of datasets within the bbox
             bbox_query_ids = [extent.package_id for extent in extents]
 
-            q = search_params.get('q','').strip() or '""'
+            q = search_params.get('q', '').strip() or '""'
             # Note: `"" AND` query doesn't work in github ci
             new_q = '%s AND ' % q if q and q != '""' else ''
             new_q += '(%s)' % ' OR '.join(['id:%s' % id for id in bbox_query_ids])
