@@ -1517,7 +1517,7 @@ class ISODocument(MappedXmlDocument):
             field[lang]['abstract'] = abstract.get(lang)
             field[lang]['language'] = lang
             field[lang]['URL'] = url_for(
-                controller='package',
+                controller='dataset',
                 action='read',
                 id=munge.munge_name(values.get('guid', '')),
                 local=lang,
@@ -1526,8 +1526,8 @@ class ISODocument(MappedXmlDocument):
             field[lang] = json.dumps([field[lang]])
             # the dump converts utf-8 escape sequences to unicode escape
             # sequences so we have to convert back again
-            if(field[lang] and re.search(r'\\u[0-9a-fA-F]{4}', field[lang])):
-                field[lang] = field[lang].decode("raw_unicode_escape")
+            # if(field[lang] and re.search(r'\\u[0-9a-fA-F]{4}', field[lang])):
+            #     field[lang] = field[lang].decode("raw_unicode_escape")
             # double escape any double quotes that are already escaped
             field[lang] = field[lang].replace('\"', '\\"')
         values['citation'] = json.dumps(field)
@@ -1598,32 +1598,29 @@ class ISODocument(MappedXmlDocument):
 
         default = item.get('default').strip()
         # decode double escaped unicode chars
-        if(default and re.search(r'\\\\u[0-9a-fA-F]{4}', default)):
-            default = default.decode("raw_unicode_escape")
-        if isinstance(default, unicode):
-            try:
-                default = default.encode('utf-8')
-            except Exception:
-                log.error('Failed to encode string "%r" as utf-8', default)
+        # if(default and re.search(r'\\\\u[0-9a-fA-F]{4}', default)):
+        #     default = default.decode("raw_unicode_escape")
+        # try:
+        #     default = default.encode('utf-8')
+        # except Exception:
+        #     log.error('Failed to encode string "%r" as utf-8', default)
         if len(default) > 1:
             out.update({defaultLangKey: default})
 
         local = item.get('local')
         if isinstance(local, dict):
             langKey = self.cleanLangKey(local.get('language_code'))
-            if isinstance(langKey, unicode):
-                langKey = langKey.encode('utf-8')
+            langKey = langKey.encode('utf-8')
 
             LangValue = item.get('local').get('value')
             LangValue = LangValue.strip()
             # decode double escaped unicode chars
-            if(LangValue and re.search(r'\\\\u[0-9a-fA-F]{4}', LangValue)):
-                LangValue = LangValue.decode("raw_unicode_escape")
-            if isinstance(LangValue, unicode):
-                try:
-                    LangValue = LangValue.encode('utf-8')
-                except Exception:
-                    log.error('Failed to encode string "%r" as utf-8', LangValue)
+            # if(LangValue and re.search(r'\\\\u[0-9a-fA-F]{4}', LangValue)):
+            #     LangValue = LangValue.decode("raw_unicode_escape")
+            # try:
+            #     LangValue = LangValue.encode('utf-8')
+            # except Exception:
+            #     log.error('Failed to encode string "%r" as utf-8', LangValue)
             if len(LangValue) > 1:
                 out.update({langKey: LangValue})
 

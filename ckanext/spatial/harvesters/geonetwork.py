@@ -11,7 +11,7 @@ from ckanext.spatial.model import ISOElement
 
 from ckan.logic import ValidationError, NotFound, get_action
 
-from pylons import config
+from ckantoolkit import config
 from datetime import datetime
 
 log = logging.getLogger(__name__)

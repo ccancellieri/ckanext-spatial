@@ -10,7 +10,7 @@ except ImportError:
     import ckan.plugins
     import ckan.lib.search as search
 
-    from ckan.common import config
+    from ckantoolkit import config
 
     @pytest.fixture
     def ckan_config(request, monkeypatch):

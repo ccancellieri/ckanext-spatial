@@ -8,7 +8,7 @@ import hashlib
 import dateutil.parser
 import pyparsing as parse
 import requests
-from HTMLParser import HTMLParser
+import html
 from sqlalchemy.orm import aliased
 from sqlalchemy.exc import DataError
 
@@ -16,7 +16,7 @@ from ckan import model
 from ckan.logic import ValidationError, NotFound, get_action
 
 from ckan.plugins.core import SingletonPlugin, implements
-from pylons import config
+from ckantoolkit import config
 
 from ckanext.harvest.interfaces import IHarvester
 from ckanext.harvest.model import HarvestObject
@@ -96,7 +96,6 @@ class WAFHarvester(SpatialHarvester, SingletonPlugin):
                         log.warning('Group %s from category %s is not available' % (groupname, cat))
         except Exception as e:
             log.warning('Error handling groups for metadata %s' % harvest_object.guid)
-            log.error('%s',e)
 
         return validated_groups
 
@@ -158,11 +157,11 @@ class WAFHarvester(SpatialHarvester, SingletonPlugin):
 
         url_to_modified_harvest = {} ## mapping of url to last_modified in harvest
         try:
-            for url, modified_date in _extract_waf(content,source_url,scraper):
+            for url, modified_date in _extract_waf(six.text_type(content), source_url,scraper):
                 url_to_modified_harvest[url] = modified_date
         except Exception as e:
             msg = 'Error extracting URLs from %s, error was %s' % (source_url, e)
-            self._save_gather_error(msg,harvest_job)
+            self._save_gather_error(msg, harvest_job)
             return None
 
         ######  Compare source and db ######
@@ -349,8 +348,7 @@ def _extract_waf(content, base_url, scraper, results = None, depth=0):
         url = record.url
 
         if '&#' in url:
-            h = HTMLParser()
-            url=h.unescape(url)
+            url = html.unescape(url)
             record.url = url
 
         if not url:
