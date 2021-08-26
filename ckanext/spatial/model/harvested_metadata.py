@@ -1464,13 +1464,17 @@ class ISODocument(MappedXmlDocument):
         self.infer_guid(values)
         self.infer_temporal_vertical_extent(values)
         self.infer_citation(values)
+        self.drop_empty_objects(values)
         return values
 
     def infer_citation(self, values):
         value = values['citation'][0]
         if len(value['issued']):
             dates = value['issued']
-            dates.sort(reverse=True)
+            if isinstance(dates[0], str):
+                dates.sort(reverse=True)
+            else:  # it's an object
+                dates = sorted(dates, key=lambda k: k['value'], reverse=True)
             issued_date = str(dates[0]['value'])
             value['issued'] = [{"date-parts": [issued_date[:4], issued_date[5:7], issued_date[8:10]]}]
         value['id'] = self.calculate_identifier(value['id'])
@@ -1504,6 +1508,7 @@ class ISODocument(MappedXmlDocument):
         identifier = values.get('unique-resource-identifier-full', {})
         if identifier:
             doi = self.calculate_identifier(identifier)
+            doi = re.sub(r'^http.*doi\.org/', '', doi, flags=re.IGNORECASE)  # strip https://doi.org/ and the like
             if doi and re.match(r'^10.\d{4,9}\/[-._;()/:A-Z0-9]+$', doi, re.IGNORECASE):
                 value['DOI'] = doi
         # TODO: could we have more then one doi?
@@ -1598,8 +1603,13 @@ class ISODocument(MappedXmlDocument):
 
         default = item.get('default').strip()
         # decode double escaped unicode chars
-        # if(default and re.search(r'\\\\u[0-9a-fA-F]{4}', default)):
-        #     default = default.decode("raw_unicode_escape")
+        if(default and re.search(r'\\\\u[0-9a-fA-F]{4}', default)):
+            if isinstance(default, str):  # encode to get bytestring as decode only works on bytes
+                default = default.encode().decode('unicode-escape')
+            else:  # we have bytes
+                default = default.decode('unicode-escape')
+
+        # this will create a byte string so better to let the json.dumps library handle it
         # try:
         #     default = default.encode('utf-8')
         # except Exception:
@@ -1610,13 +1620,18 @@ class ISODocument(MappedXmlDocument):
         local = item.get('local')
         if isinstance(local, dict):
             langKey = self.cleanLangKey(local.get('language_code'))
-            langKey = langKey.encode('utf-8')
+            # langKey = langKey.encode('utf-8')
 
             LangValue = item.get('local').get('value')
             LangValue = LangValue.strip()
             # decode double escaped unicode chars
-            # if(LangValue and re.search(r'\\\\u[0-9a-fA-F]{4}', LangValue)):
-            #     LangValue = LangValue.decode("raw_unicode_escape")
+            if(LangValue and re.search(r'\\\\u[0-9a-fA-F]{4}', LangValue)):
+                if isinstance(LangValue, str):  # encode to get bytestring as decode only works on bytes
+                    LangValue = LangValue.encode().decode('unicode-escape')
+                else:  # we have bytes
+                    LangValue = LangValue.decode('unicode-escape')
+
+            # this will create a byte string so better to let the json.dumps library handle it
             # try:
             #     LangValue = LangValue.encode('utf-8')
             # except Exception:
@@ -1669,6 +1684,23 @@ class ISODocument(MappedXmlDocument):
     def infer_spatial(self, values):
         geom = None
         for xmlGeom in values.get('spatial', []):
+            # convert bytes to str
+            try:
+                xmlGeom = xmlGeom.decode()
+            except (UnicodeDecodeError, AttributeError):
+                pass
+
+            if isinstance(xmlGeom, list):
+                for n, x in enumerate(xmlGeom):
+                    try:
+                        xmlGeom[n] = x.decode()
+                    except (UnicodeDecodeError, AttributeError):
+                        pass
+
+            if isinstance(xmlGeom, list):
+                if len(xmlGeom) == 1:
+                    xmlGeom = xmlGeom[0]
+
             try:
                 geom = ogr.CreateGeometryFromGML(xmlGeom)
             except Exception:
@@ -1683,6 +1715,11 @@ class ISODocument(MappedXmlDocument):
                         return
         if geom:
             values['spatial'] = geom.ExportToJson()
+            if not values.get('bbox'):
+                extent = geom.GetEnvelope()
+                if extent:
+                    values['bbox'].append({'west': '', 'east': '', 'north': '', 'south': ''})
+                    values['bbox'][0]['west'], values['bbox'][0]['east'], values['bbox'][0]['north'], values['bbox'][0]['south'] = extent
 
     def clean_metadata_reference_date(self, values):
         dates = []
@@ -1789,6 +1826,13 @@ class ISODocument(MappedXmlDocument):
                     break
         values['contact-email'] = value
 
+    def drop_empty_objects(self, values):
+        to_drop = []
+        for key, value in values.items():
+            if value == {} or value == []:
+                to_drop.append(key)
+        for key in to_drop:
+            del values[key]
 
 class GeminiDocument(ISODocument):
     '''

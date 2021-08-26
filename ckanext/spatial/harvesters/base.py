@@ -320,9 +320,9 @@ class SpatialHarvester(HarvesterBase):
             meta_org = None
 
             # populate orginization options from iso metadata
-            if iso_values['responsible-organisation']:
+            if iso_values.get('responsible-organisation'):
                 resp_org = iso_values.get('responsible-organisation')[0].get('organisation-name','')
-            if iso_values['metadata-point-of-contact']:
+            if iso_values.get('metadata-point-of-contact'):
                 meta_org = iso_values.get('metadata-point-of-contact')[0].get('organisation-name','')
 
             log.info("Found remote orginization options of: '%s', '%s', '%s'",package_dict['owner_org'], resp_org, meta_org)
@@ -387,6 +387,7 @@ class SpatialHarvester(HarvesterBase):
             'frequency-of-update',
             'spatial-data-service-type',
         ]:
+            if iso_values.get(name):
             extras[name] = iso_values[name]
 
         if len(iso_values.get('progress', [])):
@@ -461,14 +462,14 @@ class SpatialHarvester(HarvesterBase):
                     parties[party['organisation-name']] = [party['role']]
             extras['responsible-party'] = [{'name': k, 'roles': v} for k, v in parties.items()]
 
-        if len(iso_values['bbox']) > 0:
+        if len(iso_values.get('bbox',[])) > 0:
             bbox = iso_values['bbox'][0]
             extras['bbox-east-long'] = bbox['east']
             extras['bbox-north-lat'] = bbox['north']
             extras['bbox-south-lat'] = bbox['south']
             extras['bbox-west-long'] = bbox['west']
 
-            if iso_values['spatial']:
+            if iso_values.get('spatial'):
                 extras['spatial'] = iso_values['spatial']
             else:
                 try:
@@ -657,7 +658,7 @@ class SpatialHarvester(HarvesterBase):
             previous_object.add()
 
         # Update GUID with the one on the document
-        iso_guid = iso_values['guid']
+        iso_guid = iso_values.get('guid')
         if iso_guid and harvest_object.guid != iso_guid:
             # First make sure there already aren't current objects
             # with the same guid
