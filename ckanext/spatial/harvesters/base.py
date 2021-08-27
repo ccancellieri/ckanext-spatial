@@ -388,7 +388,7 @@ class SpatialHarvester(HarvesterBase):
             'spatial-data-service-type',
         ]:
             if iso_values.get(name):
-            extras[name] = iso_values[name]
+                extras[name] = iso_values[name]
 
         if len(iso_values.get('progress', [])):
             extras['progress'] = iso_values['progress'][0]
