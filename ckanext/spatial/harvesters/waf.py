@@ -160,7 +160,7 @@ class WAFHarvester(SpatialHarvester, SingletonPlugin):
             for url, modified_date in _extract_waf(content, source_url, scraper):
                 url_to_modified_harvest[url] = modified_date
         except Exception as e:
-            msg = 'Error extracting URLs from %s, error was %s' % (source_url, e)
+            msg = 'Error extracting URLs from %s, error was %r' % (source_url, e)
             self._save_gather_error(msg, harvest_job)
             return None
 
@@ -340,9 +340,12 @@ def _extract_waf(content, base_url, scraper, results = None, depth=0):
     base_url += '/'
 
     try:
-        parsed = scrapers[scraper].parseString(content)
-    except parse.ParseException:
-        parsed = scrapers['other'].parseString(content)
+        parsed = scrapers[scraper].parseString(str(content))
+    except parse.ParseException as pex:
+        log.error(pex)
+        parsed = scrapers['other'].parseString(str(content))
+    except Exception as e:
+        log.exception(e)
 
     for record in parsed:
         url = record.url
