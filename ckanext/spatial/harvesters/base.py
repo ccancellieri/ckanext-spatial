@@ -55,6 +55,10 @@ def guess_standard(content):
         return 'iso'
     if '</gmi:MI_Metadata>'.lower() in lowered:
         return 'iso'
+    if '</mdb:MD_Metadata>'.lower() in lowered:
+        return 'iso'
+    if '</mdi:MI_Metadata>'.lower() in lowered:
+        return 'iso'
     if '</metadata>'.lower() in lowered:
         return 'fgdc'
     return 'unknown'
@@ -338,38 +342,40 @@ class SpatialHarvester(HarvesterBase):
                     parties[party['organisation-name']] = [party['role']]
             extras['responsible-party'] = [{'name': k, 'roles': v} for k, v in parties.items()]
 
-        if len(iso_values['bbox']) > 0:
+        if len(iso_values.get('bbox',[])) > 0:
             bbox = iso_values['bbox'][0]
             extras['bbox-east-long'] = bbox['east']
             extras['bbox-north-lat'] = bbox['north']
             extras['bbox-south-lat'] = bbox['south']
             extras['bbox-west-long'] = bbox['west']
 
-            try:
-                xmin = float(bbox['west'])
-                xmax = float(bbox['east'])
-                ymin = float(bbox['south'])
-                ymax = float(bbox['north'])
-            except ValueError as e:
-                self._save_object_error('Error parsing bounding box value: {0}'.format(six.text_type(e)),
-                                    harvest_object, 'Import')
+            if iso_values.get('spatial'):
+                extras['spatial'] = iso_values['spatial']
             else:
-                # Construct a GeoJSON extent so ckanext-spatial can register the extent geometry
-
-                # Some publishers define the same two corners for the bbox (ie a point),
-                # that causes problems in the search if stored as polygon
-                if xmin == xmax or ymin == ymax:
-                    extent_string = Template('{"type": "Point", "coordinates": [$x, $y]}').substitute(
-                        x=xmin, y=ymin
-                    )
-                    self._save_object_error('Point extent defined instead of polygon',
-                                     harvest_object, 'Import')
+                try:
+                    xmin = float(bbox['west'])
+                    xmax = float(bbox['east'])
+                    ymin = float(bbox['south'])
+                    ymax = float(bbox['north'])
+                except ValueError as e:
+                    self._save_object_error('Error parsing bounding box value: {0}'.format(six.text_type(e)),
+                                        harvest_object, 'Import')
                 else:
-                    extent_string = self.extent_template.substitute(
-                        xmin=xmin, ymin=ymin, xmax=xmax, ymax=ymax
-                    )
+                    # Construct a GeoJSON extent so ckanext-spatial can register the extent geometry
 
-                extras['spatial'] = extent_string.strip()
+                    # Some publishers define the same two corners for the bbox (ie a point),
+                    # that causes problems in the search if stored as polygon
+                    if xmin == xmax or ymin == ymax:
+                        extent_string = Template('{"type": "Point", "coordinates": [$x, $y]}').substitute(
+                            x=xmin, y=ymin
+                        )
+                        self._save_object_error('Point extent defined instead of polygon',
+                                        harvest_object, 'Import')
+                    else:
+                        extent_string = self.extent_template.substitute(
+                            xmin=xmin, ymin=ymin, xmax=xmax, ymax=ymax
+                        )
+                    extras['spatial'] = extent_string.strip()
         else:
             log.debug('No spatial extent defined for this object')
 
