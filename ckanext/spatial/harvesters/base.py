@@ -328,7 +328,7 @@ class SpatialHarvester(HarvesterBase):
 
 
         for key in ['temporal-extent-begin', 'temporal-extent-end']:
-            if len(iso_values[key]) > 0:
+            if len(iso_values.get(key, '')) > 0:
                 extras[key] = iso_values[key][0]
 
         # Save responsible organization roles

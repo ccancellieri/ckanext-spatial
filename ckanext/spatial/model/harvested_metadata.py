@@ -1,4 +1,5 @@
 from lxml import etree
+from owslib.util import element_to_string
 import six
 import json
 import copy
@@ -31,7 +32,9 @@ class MappedXmlDocument(MappedXmlObject):
         values = {}
         tree = self.get_xml_tree()
         for element in self.elements:
+            log.debug('element: '+element.name)
             values[element.name] = element.read_value(tree)
+            
         self.infer_values(values)
         return values
 
@@ -1487,10 +1490,10 @@ class ISODocument(MappedXmlDocument):
             name="resource-locator",
             search_paths=[
                 "gmd:distributionInfo/gmd:MD_Distribution/gmd:transferOptions/gmd:MD_DigitalTransferOptions/gmd:onLine/gmd:CI_OnlineResource",
-                "gmd:distributionInfo/gmd:MD_Distribution/gmd:distributor/gmd:MD_Distributor/gmd:distributorTransferOptions/gmd:MD_DigitalTransferOptions/gmd:onLine/gmd:CI_OnlineResource"
+                "gmd:distributionInfo/gmd:MD_Distribution/gmd:distributor/gmd:MD_Distributor/gmd:distributorTransferOptions/gmd:MD_DigitalTransferOptions/gmd:onLine/gmd:CI_OnlineResource",
                 # 19115-3
                 "mdb:distributionInfo/mrd:MD_Distribution/mrd:transferOptions/mrd:MD_DigitalTransferOptions/mrd:onLine/cit:CI_OnlineResource",
-                "mdb:distributionInfo/mrd:MD_Distribution/mrd:distributor/mrd:MD_Distributor/mrd:distributorTransferOptions/mrd:MD_DigitalTransferOptions/mrd:onLine/cit:CI_OnlineResource"
+                "mdb:distributionInfo/mrd:MD_Distribution/mrd:distributor/mrd:MD_Distributor/mrd:distributorTransferOptions/mrd:MD_DigitalTransferOptions/mrd:onLine/cit:CI_OnlineResource",
             ],
             multiplicity="*",
         ),
