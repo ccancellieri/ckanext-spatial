@@ -819,8 +819,8 @@ class SpatialHarvester(HarvesterBase):
         or not, the profile used and a list of errors (tuples with error
         message and error lines if present).
         '''
-        if not validator:
-            validator = self._get_validator()
+        # get fresh validator
+        validator = self._get_validator()
 
         document_string = re.sub('<\?xml(.*)\?>', '', document_string)
 

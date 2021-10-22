@@ -66,6 +66,60 @@ class XsdValidator(BaseValidator):
         return True, []
 
 
+class ISO19115_Schema(XsdValidator):
+    name = 'iso19115-3.2018'
+    title = 'ISO19115 XSD Schema'
+
+    @classmethod
+    def is_valid(cls, xml):
+        xsd_path = 'xml/iso19115/standards.iso.org/19115/-3'
+        mdb_xsd_filepath = os.path.join(os.path.dirname(__file__),
+                                        xsd_path, 'mdb/2.0/mdb.xsd')
+        xsd_name = 'Dataset schema 3.2018 (mds.xsd)'
+        is_valid, errors = cls._is_valid(xml, mdb_xsd_filepath, xsd_name)
+        if not is_valid:
+            # TODO: not sure if we need this one,
+            # keeping for backwards compatibility
+            errors.insert(0, ('{0} Validation Error'.format(xsd_name), None))
+        return is_valid, errors
+
+
+class ISO19115_2_Schema(XsdValidator):
+    name = 'iso19115-2'
+    title = 'ISO19115 XSD Schema'
+
+    @classmethod
+    def is_valid(cls, xml):
+        xsd_path = 'xml/iso19115/standards.iso.org/19115/-3'
+        mdb_xsd_filepath = os.path.join(os.path.dirname(__file__),
+                                        xsd_path, 'mdb/1.0/mdb.xsd')
+        xsd_name = 'Dataset schema 2.0 (mds.xsd)'
+        is_valid, errors = cls._is_valid(xml, mdb_xsd_filepath, xsd_name)
+        if not is_valid:
+            # TODO: not sure if we need this one,
+            # keeping for backwards compatibility
+            errors.insert(0, ('{0} Validation Error'.format(xsd_name), None))
+        return is_valid, errors
+
+
+class ISO19115_1_Schema(XsdValidator):
+    name = 'iso19115-1'
+    title = 'ISO19115-3 v1.0 XSD Schema'
+
+    @classmethod
+    def is_valid(cls, xml):
+        xsd_path = 'xml/19115/standards.iso.org/19115/-3'
+        mdb_xsd_filepath = os.path.join(os.path.dirname(__file__),
+                                        xsd_path, 'mds/1.0/mds.xsd')
+        xsd_name = 'Dataset schema 1.0 (mds.xsd)'
+        is_valid, errors = cls._is_valid(xml, mdb_xsd_filepath, xsd_name)
+        if not is_valid:
+            # TODO: not sure if we need this one,
+            # keeping for backwards compatibility
+            errors.insert(0, ('{0} Validation Error'.format(xsd_name), None))
+        return is_valid, errors
+
+
 class ISO19139Schema(XsdValidator):
     name = 'iso19139'
     title = 'ISO19139 XSD Schema'
@@ -269,6 +323,19 @@ class SchematronValidator(BaseValidator):
         return etree.XSLT(compiled)
 
 
+class ISO19115_Schematron(SchematronValidator):
+    name = 'iso19115schematron'
+    title = 'ISO19115 Schematron'
+
+    @classmethod
+    def get_schematrons(cls):
+        with resource_stream(
+                __name__,
+                "xml/iso19115/-3/mdb/2.0/mdb.sch") as schema:
+
+            return [cls.schematron(schema)]
+
+
 class ConstraintsSchematron(SchematronValidator):
     name = 'constraints'
     title = 'ISO19139 Table A.1 Constraints Schematron (Medin 1.3)'
@@ -316,7 +383,12 @@ class Gemini2Schematron13(SchematronValidator):
                              "xml/gemini2/Gemini2_R1r3.sch") as schema:
             return [cls.schematron(schema)]
 
-all_validators = (ISO19139Schema,
+all_validators = (
+                  ISO19115_Schema,
+                  ISO19115_2_Schema,
+                  ISO19115_1_Schema,
+                  ISO19115_Schematron,
+                  ISO19139Schema,
                   ISO19139EdenSchema,
                   ISO19139NGDCSchema,
                   FGDCSchema,
@@ -330,7 +402,7 @@ class Validators(object):
     '''
     Validates XML against one or more profiles (i.e. validators).
     '''
-    def __init__(self, profiles=["iso19139", "constraints", "gemini2"]):
+    def __init__(self, profiles=["iso19115", "iso19139", "constraints", "gemini2"]):
         self.profiles = profiles
 
         self.validators = {}  # name: class
