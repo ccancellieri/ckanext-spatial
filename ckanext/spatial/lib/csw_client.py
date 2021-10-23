@@ -98,9 +98,14 @@ class CswService(OwsService):
     def getrecords(self, qtype=None, keywords=[],
                    typenames="csw:Record", esn="brief",
                    skip=0, count=10, outputschema="gmd", **kw):
-        from owslib.csw import namespaces
+
         constraints = []
         csw = self._ows(**kw)
+
+        # fetch target csw server capabilities for requested output schema
+        output_schemas=self._get_output_schemas('GetRecords')
+        if not output_schemas.get(outputschema):
+            raise CswError('Output schema \'{}\' not supported by target server: '.format(output_schemas))
 
         if qtype is not None:
            constraints.append(PropertyIsEqualTo("dc:type", qtype))
@@ -111,7 +116,7 @@ class CswService(OwsService):
             "esn": esn,
             "startposition": skip,
             "maxrecords": count,
-            "outputschema": namespaces[outputschema],
+            "outputschema": output_schemas[outputschema],
             "sortby": self.sortby
             }
         log.info('Making CSW request: getrecords2 %r', kwa)
@@ -126,9 +131,14 @@ class CswService(OwsService):
     def getidentifiers(self, qtype=None, typenames="csw:Record", esn="brief",
                        keywords=[], limit=None, page=10, outputschema="gmd",
                        startposition=0, cql=None, **kw):
-        from owslib.csw import namespaces
+
         constraints = []
         csw = self._ows(**kw)
+
+        # fetch target csw server capabilities for requested output schema
+        output_schemas=self._get_output_schemas('GetRecords')
+        if not output_schemas.get(outputschema):
+            raise CswError('Output schema \'{}\' not supported by target server: '.format(output_schemas))
 
         if qtype is not None:
            constraints.append(PropertyIsEqualTo("dc:type", qtype))
@@ -139,7 +149,7 @@ class CswService(OwsService):
             "esn": esn,
             "startposition": startposition,
             "maxrecords": page,
-            "outputschema": namespaces[outputschema],
+            "outputschema": output_schemas[outputschema],
             "cql": cql,
             "sortby": self.sortby
             }
@@ -153,7 +163,6 @@ class CswService(OwsService):
                 err = 'Error getting identifiers: %r' % \
                       csw.exceptionreport.exceptions
                 #log.error(err)
-                raise CswError(err)
 
             if matches == 0:
                 matches = csw.results['matches']
