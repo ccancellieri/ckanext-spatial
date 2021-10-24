@@ -55,10 +55,6 @@ def guess_standard(content):
         return 'iso'
     if '</gmi:MI_Metadata>'.lower() in lowered:
         return 'iso'
-    if '</mdb:MD_Metadata>'.lower() in lowered:
-        return 'iso'
-    if '</mdi:MI_Metadata>'.lower() in lowered:
-        return 'iso'
     if '</metadata>'.lower() in lowered:
         return 'fgdc'
     return 'unknown'
@@ -328,7 +324,7 @@ class SpatialHarvester(HarvesterBase):
 
 
         for key in ['temporal-extent-begin', 'temporal-extent-end']:
-            if len(iso_values.get(key, '')) > 0:
+            if len(iso_values[key]) > 0:
                 extras[key] = iso_values[key][0]
 
         # Save responsible organization roles
@@ -342,40 +338,38 @@ class SpatialHarvester(HarvesterBase):
                     parties[party['organisation-name']] = [party['role']]
             extras['responsible-party'] = [{'name': k, 'roles': v} for k, v in parties.items()]
 
-        if len(iso_values.get('bbox',[])) > 0:
+        if len(iso_values['bbox']) > 0:
             bbox = iso_values['bbox'][0]
             extras['bbox-east-long'] = bbox['east']
             extras['bbox-north-lat'] = bbox['north']
             extras['bbox-south-lat'] = bbox['south']
             extras['bbox-west-long'] = bbox['west']
 
-            if iso_values.get('spatial'):
-                extras['spatial'] = iso_values['spatial']
+            try:
+                xmin = float(bbox['west'])
+                xmax = float(bbox['east'])
+                ymin = float(bbox['south'])
+                ymax = float(bbox['north'])
+            except ValueError as e:
+                self._save_object_error('Error parsing bounding box value: {0}'.format(six.text_type(e)),
+                                    harvest_object, 'Import')
             else:
-                try:
-                    xmin = float(bbox['west'])
-                    xmax = float(bbox['east'])
-                    ymin = float(bbox['south'])
-                    ymax = float(bbox['north'])
-                except ValueError as e:
-                    self._save_object_error('Error parsing bounding box value: {0}'.format(six.text_type(e)),
-                                        harvest_object, 'Import')
-                else:
-                    # Construct a GeoJSON extent so ckanext-spatial can register the extent geometry
+                # Construct a GeoJSON extent so ckanext-spatial can register the extent geometry
 
-                    # Some publishers define the same two corners for the bbox (ie a point),
-                    # that causes problems in the search if stored as polygon
-                    if xmin == xmax or ymin == ymax:
-                        extent_string = Template('{"type": "Point", "coordinates": [$x, $y]}').substitute(
-                            x=xmin, y=ymin
-                        )
-                        self._save_object_error('Point extent defined instead of polygon',
-                                        harvest_object, 'Import')
-                    else:
-                        extent_string = self.extent_template.substitute(
-                            xmin=xmin, ymin=ymin, xmax=xmax, ymax=ymax
-                        )
-                    extras['spatial'] = extent_string.strip()
+                # Some publishers define the same two corners for the bbox (ie a point),
+                # that causes problems in the search if stored as polygon
+                if xmin == xmax or ymin == ymax:
+                    extent_string = Template('{"type": "Point", "coordinates": [$x, $y]}').substitute(
+                        x=xmin, y=ymin
+                    )
+                    self._save_object_error('Point extent defined instead of polygon',
+                                     harvest_object, 'Import')
+                else:
+                    extent_string = self.extent_template.substitute(
+                        xmin=xmin, ymin=ymin, xmax=xmax, ymax=ymax
+                    )
+
+                extras['spatial'] = extent_string.strip()
         else:
             log.debug('No spatial extent defined for this object')
 
@@ -819,8 +813,8 @@ class SpatialHarvester(HarvesterBase):
         or not, the profile used and a list of errors (tuples with error
         message and error lines if present).
         '''
-        # get fresh validator
-        validator = self._get_validator()
+        if not validator:
+            validator = self._get_validator()
 
         document_string = re.sub('<\?xml(.*)\?>', '', document_string)
 
