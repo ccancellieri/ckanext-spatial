@@ -258,15 +258,18 @@ class ISO19115Harvester(CSWHarvester, SingletonPlugin):
             self._save_object_error('Empty content for object {0}'.format(harvest_object.id), harvest_object, 'Import')
             return False
 
+
+        # read configuration
+        self._set_source_config(harvest_object.source.config)
+
         # prepare context
         context = {
             'model': model,
             'session': model.Session,
             'user': self._get_user_name(),
+            # Tunnelled to pass to spatial_plugin
+            'config': dict(self.source_config)
         }
-
-        # read configuration
-        self._set_source_config(harvest_object.source.config)
 
         # Flag previous object as not current anymore
         # Get the last harvested object (if any)
@@ -354,7 +357,9 @@ class ISO19115Harvester(CSWHarvester, SingletonPlugin):
             package_dict = _plugin.get_package_dict(context, {
                 'package_dict': package_dict,
                 'iso_values': parsed_values,
-                # TODO check if schematron, xnl_tree is not initialized
+                # TODO ticket
+                # should be passed by base parser.read_values()
+                # but it's not there...
                 'xml_tree': parsed_values.get('xml_tree',etree.fromstring(harvest_object.content)),
                 'harvest_object': harvest_object,
             })
