@@ -277,6 +277,7 @@ class ISO19115Harvester(CSWHarvester, SingletonPlugin):
                             .filter(HarvestObject.guid==harvest_object.guid) \
                             .filter(HarvestObject.current==True) \
                             .first()
+                            
         if previous_object and not self.force_import:
             previous_object.current = False
             previous_object.add()
@@ -367,9 +368,6 @@ class ISO19115Harvester(CSWHarvester, SingletonPlugin):
         if not package_dict:
             log.error('No package dict returned, aborting import for object {0}'.format(harvest_object.id))
             return False
-        
-
-        ###################
 
         # Update GUID with the one on the document
         iso_guid = parsed_values.get('guid')
@@ -391,44 +389,63 @@ class ISO19115Harvester(CSWHarvester, SingletonPlugin):
             harvest_object.metadata_modified_date = datetime.datetime.today()
 
         
-        # TODO doublecheck when to .add()
-        # Flag this object as the current one
-        harvest_object.current = True
-        harvest_object.add()
         ###################
 
         # The default package schema does not like Upper case tags
         tag_schema = logic.schema.default_tags_schema()
         tag_schema['name'] = [not_empty, six.text_type]
-        package_schema = logic.schema.default_create_package_schema()
-        package_schema['tags'] = tag_schema
-        context['schema'] = package_schema
-
         try:
             if status == 'new':
-                self._new(context, log, harvest_object, package_schema, package_dict)
 
-            elif status == 'change':
-                # Check if the modified date is more recent
-                if not self.force_import \
-                        and previous_object and \
-                        harvest_object.metadata_modified_date <= previous_object.metadata_modified_date:
-                    
-                    # Assign the previous job id to the new object to
-                    # avoid losing history
-                    harvest_object.harvest_job_id = previous_object.job.id
+                # TODO doublecheck when to .add()
+                # Flag this object as the current one
+                harvest_object.current = True
+                harvest_object.add()
+
+                # create
+                package_schema = logic.schema.default_create_package_schema()
+                package_schema['tags'] = tag_schema
+                context['schema'] = package_schema
+                self._new(context, log, harvest_object, package_dict)
+
+            else:
+
+                # update or delete
+                package_schema = logic.schema.default_update_package_schema()
+                package_schema['tags'] = tag_schema
+                context['schema'] = package_schema
+
+                if status == 'change':
+
+                    # TODO doublecheck when to .add()
+                    # Flag this object as the current one
+                    harvest_object.current = True
                     harvest_object.add()
-                    # Delete the previous object to avoid cluttering the object table
-                    previous_object.delete()
-
-                    self._change(context, log, harvest_object, package_schema, package_dict)
-                else:
                     
-                    package_dict['id'] = harvest_object.package_id
+                    # TODO restore if deleted
+                    if harvest_object.package and harvest_object.package.state=='deleted':
+                        # undelete
+                        package_dict['state']='active'
 
-                    package_id = p.toolkit.get_action('package_update')(context, package_dict)
-                    log.info('Updated package %s with guid %s', package_id, harvest_object.guid)
+                        # update
+                        self._change(context, log, harvest_object, package_dict)
 
+                    # Check if the modified date is more recent
+                    elif not self.force_import \
+                            and previous_object and \
+                            harvest_object.metadata_modified_date <= previous_object.metadata_modified_date:
+                        log.info('Document with GUID %s unchanged, skipping...' % (harvest_object.guid))
+                        # Assign the previous job id to the new object to
+                        # avoid losing history
+                        harvest_object.harvest_job_id = previous_object.job.id
+                        harvest_object.add()
+                        # Delete the previous object to avoid cluttering the object table
+                        previous_object.delete()
+                    else:
+                        # update
+                        self._change(context, log, harvest_object, package_dict)
+
+                self._index(context, log, harvest_object, package_dict)
         except p.toolkit.ValidationError as e:
             self._save_object_error('Validation Error: %s' % six.text_type(e.error_summary), harvest_object, 'Import')
             return False 
@@ -535,8 +552,16 @@ class ISO19115Harvester(CSWHarvester, SingletonPlugin):
         log.info('Deleted package {0} with guid {1}'.format(harvest_object.package_id, harvest_object.guid))
         return True
 
-    def _change(self, context, log, harvest_object, package_schema, package_dict):
+    def _change(self, context, log, harvest_object, package_dict):
+        package_dict['id'] = harvest_object.package_id
+        try:
+            package_id = p.toolkit.get_action('package_update')(context, package_dict)
+            log.info('Updated package %s with guid %s', package_id, harvest_object.guid)
+        except p.toolkit.ValidationError as e:
+            self._save_object_error('Validation Error: %s' % six.text_type(e.error_summary), harvest_object, 'Import')
+            return False
 
+    def _index(self, context, log, harvest_object, package_dict):
 
         # Reindex the corresponding package to update the reference to the
         # harvest object
@@ -557,11 +582,9 @@ class ISO19115Harvester(CSWHarvester, SingletonPlugin):
                 if package_dict:
                     from ckan.lib.search.index import PackageSearchIndex
                     PackageSearchIndex().index_package(package_dict)
-
-        log.info('Document with GUID %s unchanged, skipping...' % (harvest_object.guid))
         
-    def _new(self, context, log, harvest_object, package_schema, package_dict):
-
+    def _new(self, context, log, harvest_object, package_dict):
+        package_schema = context['schema']
         # We need to explicitly provide a package ID, otherwise ckanext-spatial
         # won't be be able to link the extent to the package.
         import uuid

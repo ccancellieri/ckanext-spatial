@@ -346,7 +346,7 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
                 url = resource_locator.get('url', '').strip()
                 if url:
                     resource = {}
-                    resource['format'] = _guess_resource_format(url)
+                    resource['format'] = self._guess_resource_format(url)
                     if resource['format'] == 'wms' and config.get('ckanext.spatial.harvest.validate_wms', False):
                         # Check if the service is a view service
                         test_url = url.split('?')[0] if '?' in url else url
@@ -392,7 +392,10 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
 
         return package_dict
 
-def _guess_resource_format(url, use_mimetypes=True):
+#py2
+import sys
+
+def _guess_resource_format(resource_locator, use_mimetypes=True):
     '''
 
     DEPRECATED should be removed once PR are accepted on master
@@ -409,8 +412,68 @@ def _guess_resource_format(url, use_mimetypes=True):
     Returns None if no format could be guessed.
 
     '''
+    # https://www.ogc.org/docs/is
+    # https://geonetwork-opensource.org/manuals/3.10.x/en/annexes/standards/iso19139.html#protocol
+    protocols = {
+        'esri:aims-http-configuration':'http',
+        'esri:aims-http-get-feature':'http', #arcims internet feature map service
+        'esri:aims-http-get-image':'http', # arcims internet image map service
+        'glg:kml-2.0-http-get-map':'kml', # google earth kml service (ver 2.0)
+        'ogc:csw':'csw', # ogc-csw catalogue service for the web
+        'ogc:kml':'kml', # ogc-kml keyhole markup language
+        'ogc:gml':'gml', # ogc-gml geography markup language
+        #'ogc:ods':'', # ogc-ods openls directory service
+        #'ogc:ogs':'', # ogc-ods openls gateway service
+        #'ogc:ous':'', # ogc-ods openls utility service
+        #'ogc:ops':'', # ogc-ods openls presentation service
+        #'ogc:ors':'', # ogc-ods openls route service
+        #'ogc:sos':'', # ogc-sos sensor observation service
+        #'ogc:sps':'', # ogc-sps sensor planning service
+        #'ogc:sas':'', # ogc-sas sensor alert service
+        'ogc:wcs':'wcs', # ogc-wcs web coverage service
+        'ogc:wcs-1.1.0-http-get-capabilities':'wcs', # ogc-wcs web coverage service (ver 1.1.0)
+        'ogc:wcts':'wcts', # ogc-wcts web coordinate transformation service
+        'ogc:wfs':'wfs', # ogc-wfs web feature service
+        'ogc:wfs-1.0.0-http-get-capabilities':'wfs', # ogc-wfs web feature service (ver 1.0.0)
+        'ogc:wfs-g':'wfs', # ogc-wfs-g gazzetteer service
+        'ogc:wmc':'wmc', # ogc-wmc web map context
+        'ogc:wms':'wms', # ogc-wms web map service
+        'ogc:wms-1.1.1-http-get-capabilities':'wms', # ogc-wms capabilities service (ver 1.1.1)
+        'ogc:wms-1.3.0-http-get-capabilities':'wms', # ogc-wms capabilities service (ver 1.3.0)
+        'ogc:wms-1.1.1-http-get-map':'wms', # ogc web map service (ver 1.1.1)
+        'ogc:wms-1.3.0-http-get-map':'wms', # ogc web map service (ver 1.3.0)
+        'ogc:wmts':'wmts', # ogc-wmts web map tiled service
+        'ogc:wmts-1.0.0-http-get-capabilities':'wmts', # ogc-wmts capabilities service (ver 1.0.0)
+        'ogc:sos-1.0.0-http-get-observation':'sos', # ogc-sos get observation (ver 1.0.0)
+        'ogc:sos-1.0.0-http-post-observation':'sos', # ogc-sos get observation (post) (ver 1.0.0)
+        'ogc:wns':'wns', # ogc-wns web notification service
+        'ogc:wps':'wps', # ogc-wps web processing service
+        #'ogc:ows-c':'', # ogc ows context
+        'tms':'tms', # tiled map service
+        'www:download-1.0-ftp-download':'ftp', # file for download through ftp
+        'www:download-1.0-http-download':'http', # file for download
+        #'file:geo':'', # gis file
+        #'file:raster':'', # gis raster file
+        'www:link-1.0-http-ical':'ical', # icalendar (url)
+        'www:link-1.0-http-link':'http', # web address (url)
+        #'doi':'', # digital object identifier (doi)
+        'www:link-1.0-http-partners':'http', # partner web address (url)
+        'www:link-1.0-http-related':'http', # related link (url)
+        'www:link-1.0-http-rss':'http', # rss news feed (url)
+        'www:link-1.0-http-samples':'http', # showcase product (url)
+        #'db:postgis':'', # postgis database table
+        #'db:oracle':'', # oracle database table
+        'www:link-1.0-http-opendap':'http', # opendap url
+        #'rbnb:dataturbine':'', # data turbine
+        #'ukst':'', # unknown service type
+    }
+    protocol = resource_locator.get('protocol').lower().strip()
+    resource_type = protocols.get(protocol)
+    if resource_type:
+        return resource_type
+
     import mimetypes
-    url = url.lower().strip()
+    url = resource_locator.get('url').lower().strip()
 
     resource_types = {
         # OGC
@@ -425,19 +488,33 @@ def _guess_resource_format(url, use_mimetypes=True):
         'arcgis_rest': ('arcgis/rest/services',),
     }
 
-    for resource_type, parts in resource_types.items():
-        if any(part in url for part in parts):
-            return resource_type
+    if sys.version_info[0] < 3:
+        for resource_type, parts in resource_types.iteritems():
+            if any(part in url for part in parts):
+                return resource_type
+    else:
+        for resource_type, parts in resource_types.items():
+            if any(part in url for part in parts):
+                return resource_type
+    
 
     file_types = {
         'kml' : ('kml',),
         'kmz': ('kmz',),
         'gml': ('gml',),
+        'tif': ('tif','tiff',),
+        'shp': ('shp',),
+        'zip': ('zip',)
     }
 
-    for file_type, extensions in file_types.items():
-        if any(url.endswith(extension) for extension in extensions):
-            return file_type
+    if sys.version_info[0] < 3:
+        for file_type, extensions in file_types.iteritems():
+            if any(url.endswith(extension) for extension in extensions):
+                return file_type
+    else:
+        for file_type, extensions in file_types.items():
+            if any(url.endswith(extension) for extension in extensions):
+                return file_type
 
     resource_format, encoding = mimetypes.guess_type(url)
     if resource_format:
