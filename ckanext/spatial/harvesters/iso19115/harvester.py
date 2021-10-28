@@ -117,7 +117,7 @@ class ISO19115Harvester(CSWHarvester, SingletonPlugin):
 
         # return obj.source.url
 
-    # overriding waiting for merge #258
+    # NOT overriding waiting for merge #258
     # From parent CSWHarvester
     # def gather_stage(self, harvest_job):
         # '''
@@ -147,77 +147,85 @@ class ISO19115Harvester(CSWHarvester, SingletonPlugin):
 
         # return self._csw.gather_stage(harvest_job)
         
-    # overriding waiting for merge #258
+    # NOT overriding waiting for merge #258
     # From parent CSWHarvester
-    def fetch_stage(self,harvest_object):
-        '''
-        The fetch stage will receive a HarvestObject object and will be
-        responsible for:
-            - getting the contents of the remote object (e.g. for a CSW server,
-              perform a GetRecordById request).
-            - saving the content in the provided HarvestObject.
-            - creating and storing any suitable HarvestObjectErrors that may
-              occur.
-            - returning True if everything is ok (ie the object should now be
-              imported), "unchanged" if the object didn't need harvesting after
-              all (ie no error, but don't continue to import stage) or False if
-              there were errors.
+    # def fetch_stage(self,harvest_object):
+            # '''
+            # The fetch stage will receive a HarvestObject object and will be
+            # responsible for:
+            #     - getting the contents of the remote object (e.g. for a CSW server,
+            #     perform a GetRecordById request).
+            #     - saving the content in the provided HarvestObject.
+            #     - creating and storing any suitable HarvestObjectErrors that may
+            #     occur.
+            #     - returning True if everything is ok (ie the object should now be
+            #     imported), "unchanged" if the object didn't need harvesting after
+            #     all (ie no error, but don't continue to import stage) or False if
+            #     there were errors.
 
-        :param harvest_object: HarvestObject object
-        :returns: True if successful, 'unchanged' if nothing to import after
-                  all, False if not successful
-        '''
+            # :param harvest_object: HarvestObject object
+            # :returns: True if successful, 'unchanged' if nothing to import after
+            #         all, False if not successful
+            # '''
 
-        # Check harvest object status
-        status = self._get_object_extra(harvest_object, 'status')
+            # # Check harvest object status
+            # status = self._get_object_extra(harvest_object, 'status')
 
-        if status == 'delete':
-            # No need to fetch anything, just pass to the import stage
-            return True
+            # if status == 'delete':
+            #     # No need to fetch anything, just pass to the import stage
+            #     return True
 
-        log = logging.getLogger(__name__ + '.CSW.fetch')
-        log.debug('CswHarvester fetch_stage for object: %s', harvest_object.id)
+            # log = logging.getLogger(__name__ + '.CSW.fetch')
+            # log.debug('CswHarvester fetch_stage for object: %s', harvest_object.id)
 
-        url = harvest_object.source.url
-        try:
-            self._setup_csw_client(url)
-        except Exception as e:
-            self._save_object_error('Error contacting the CSW server: %s' % e,
-                                    harvest_object)
-            return False
-        #TODO ########################################################################
-        # load config
-        self._set_source_config(harvest_object.source.config)
-        # get output_schema from config
-        namespace = self.source_config.get('output_schema',self.output_schema())
-        identifier = harvest_object.guid
-        try:
-            record = self.csw.getrecordbyid([identifier], outputschema=namespace)
-        except Exception as e:
-            self._save_object_error('Error getting the CSW record with GUID %s' % identifier, harvest_object)
-            return False
-        ##########################################################################
+            # url = harvest_object.source.url
+            # try:
+            #     self._setup_csw_client(url)
+            # except Exception as e:
+            #     self._save_object_error('Error contacting the CSW server: %s' % e,
+            #                             harvest_object)
+            #     return False
+            # #TODO ########################################################################
+            # # load config
+            # self._set_source_config(harvest_object.source.config)
+            # # get output_schema from config
+            # output_schema = self.source_config.get('output_schema',self.output_schema())
+            # identifier = harvest_object.guid
+            # try:
+            #     record = self.csw.getrecordbyid([identifier], outputschema=output_schema)
+            # except Exception as e:
+            #     try:
+            #         log.warn('Unable to fetch GUID {} with output schema: {}'.format(identifier, output_schema))
+            #         if output_schema == self.output_schema():
+            #             raise e
+            #         log.info('Fetching GUID {} with output schema: {}'.format(identifier, self.output_schema()))
+            #         # retry with default output schema
+            #         record = self.csw.getrecordbyid([identifier], outputschema=self.output_schema())
+            #     except Exception as e:
+            #         self._save_object_error('Error getting the CSW record with GUID {}'.format(identifier), harvest_object)
+            #         return False
+            # ##########################################################################
 
-        if record is None:
-            self._save_object_error('Empty record for GUID %s' % identifier,
-                                    harvest_object)
-            return False
+            # if record is None:
+            #     self._save_object_error('Empty record for GUID %s' % identifier,
+            #                             harvest_object)
+            #     return False
 
-        try:
-            # Save the fetch contents in the HarvestObject
-            # Contents come from csw_client already declared and encoded as utf-8
-            # Remove original XML declaration
-            content = re.sub('<\?xml(.*)\?>', '', record['xml'])
+            # try:
+            #     # Save the fetch contents in the HarvestObject
+            #     # Contents come from csw_client already declared and encoded as utf-8
+            #     # Remove original XML declaration
+            #     content = re.sub('<\?xml(.*)\?>', '', record['xml'])
 
-            harvest_object.content = content.strip()
-            harvest_object.save()
-        except Exception as e:
-            self._save_object_error('Error saving the harvest object for GUID %s [%r]' % \
-                                    (identifier, e), harvest_object)
-            return False
+            #     harvest_object.content = content.strip()
+            #     harvest_object.save()
+            # except Exception as e:
+            #     self._save_object_error('Error saving the harvest object for GUID %s [%r]' % \
+            #                             (identifier, e), harvest_object)
+            #     return False
 
-        log.debug('XML content saved (len %s)', len(record['xml']))
-        return True
+            # log.debug('XML content saved (len %s)', len(record['xml']))
+            # return True
 
     # From parent SpatialHarvester
     def import_stage(self, harvest_object):
