@@ -1,19 +1,42 @@
+import re
+import six
 from six.moves.urllib.parse import urlparse, urlunparse, urlencode
 
+from lxml import etree
 
+from ckan import logic
 from ckan import model
 from ckan import plugins as p
 from ckantoolkit import config
 
+from ckan.lib.navl.validators import not_empty
 from ckan.plugins.core import SingletonPlugin, implements
 
 from ckanext.spatial.harvesters.base import SpatialHarvester
 from ckanext.spatial.interfaces import ISpatialHarvester
 
+# IHarvester
+from ckanext.spatial.harvesters.csw import CSWHarvester
+from ckanext.spatial.harvesters.iso19115.model import ISO19115Document
+from ckanext.harvest.interfaces import IHarvester
+from ckanext.harvest.model import HarvestObject
+
 import logging
 log = logging.getLogger(__name__)
 
 class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
+    csw_harvester = None
+
+    def _get_csw_harvester(self):
+        if not self.csw_harvester:
+            try:
+                self.csw_harvester = p.get_plugin('csw_harvester')
+            except Exception as e:
+                log.error('Failed to get package from base implementation:\n%r', str(e))
+                raise e
+
+        return self.csw_harvester
+
     '''
     An harvester for ISO19115 metadata
     '''
@@ -69,14 +92,6 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
         # _tree = data_dict['xml_tree']
         _object = data_dict['harvest_object']
         # _dict2 = elem2dict(_tree)
-        
-        # TODO delegate
-        # self.source_config = context['config']
-        try:
-            csw_harvester = p.get_plugin('csw_harvester')
-            return csw_harvester.get_package_dict(_values, _object)
-        except Exception as e:
-            log.error('Failed to get package from base implementation:\n%r', str(e))
 
         # TODO readme (below)
         return self._fault_tolerant_get_package_dict(_values, _object)
@@ -141,14 +156,20 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
     # we can be a pure ISpatialHarvester
     def info(self):
         return {
-            'name': 'iso19115',
-            'title': 'ISO19115',
+            'name': 'iso19115_harvester',
+            'title': 'new ISO19115 CSW based',
             'description': ''
             }
 
     # source_config = {}
 
     # force_import = False
+
+    # delegate
+    # TODO waiting for pull request merge
+    def _guess_resource_format(self, resource_locator, use_mimetypes=True):
+        import ckanext.spatial.harvesters.base as b
+        return b.guess_resource_format(resource_locator, use_mimetypes=True)
 
     def _fault_tolerant_get_package_dict(self, iso_values, harvest_object):
         '''
@@ -162,9 +183,7 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
 
         from string import Template
         from datetime import datetime
-        import six
         from six.moves.urllib.parse import urlparse
-        from six.moves.urllib.request import urlopen
         # from owslib import wms
         # from lxml import etree
         from ckanext.harvest.harvesters.base import munge_tag
@@ -346,7 +365,7 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
                 url = resource_locator.get('url', '').strip()
                 if url:
                     resource = {}
-                    resource['format'] = self._guess_resource_format(url)
+                    resource['format'] = self._guess_resource_format(resource_locator)
                     if resource['format'] == 'wms' and config.get('ckanext.spatial.harvest.validate_wms', False):
                         # Check if the service is a view service
                         test_url = url.split('?')[0] if '?' in url else url
@@ -364,6 +383,7 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
                         })
                     package_dict['resources'].append(resource)
 
+        extras['lineage'] = iso_values.get('lineage')
 
         # Add default_extras from config
         default_extras = self.source_config.get('default_extras',{})
@@ -392,136 +412,489 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
 
         return package_dict
 
-#py2
-import sys
+#################################################################
 
-def _guess_resource_format(resource_locator, use_mimetypes=True):
-    '''
+# IHarvester
 
-    DEPRECATED should be removed once PR are accepted on master
+    implements(IHarvester)
 
-    Given a URL try to guess the best format to assign to the resource
+    # CSWHarvester
+    # From parent SpatialHarvester
+    # def validate_config(self, config):
+        # '''
 
-    The function looks for common patterns in popular geospatial services and
-    file extensions, so it may not be 100% accurate. It just looks at the
-    provided URL, it does not attempt to perform any remote check.
+        # [optional]
 
-    if 'use_mimetypes' is True (default value), the mimetypes module will be
-    used if no match was found before.
+        # Harvesters can provide this method to validate the configuration
+        # entered in the form. It should return a single string, which will be
+        # stored in the database.  Exceptions raised will be shown in the form's
+        # error messages.
 
-    Returns None if no format could be guessed.
+        # :param harvest_object_id: Config string coming from the form
+        # :returns: A string with the validated configuration options
+        # '''
+        # # Delegate
+        # return self._csw.validate_config(config)
 
-    '''
-    # https://www.ogc.org/docs/is
-    # https://geonetwork-opensource.org/manuals/3.10.x/en/annexes/standards/iso19139.html#protocol
-    protocols = {
-        'esri:aims-http-configuration':'http',
-        'esri:aims-http-get-feature':'http', #arcims internet feature map service
-        'esri:aims-http-get-image':'http', # arcims internet image map service
-        'glg:kml-2.0-http-get-map':'kml', # google earth kml service (ver 2.0)
-        'ogc:csw':'csw', # ogc-csw catalogue service for the web
-        'ogc:kml':'kml', # ogc-kml keyhole markup language
-        'ogc:gml':'gml', # ogc-gml geography markup language
-        #'ogc:ods':'', # ogc-ods openls directory service
-        #'ogc:ogs':'', # ogc-ods openls gateway service
-        #'ogc:ous':'', # ogc-ods openls utility service
-        #'ogc:ops':'', # ogc-ods openls presentation service
-        #'ogc:ors':'', # ogc-ods openls route service
-        #'ogc:sos':'', # ogc-sos sensor observation service
-        #'ogc:sps':'', # ogc-sps sensor planning service
-        #'ogc:sas':'', # ogc-sas sensor alert service
-        'ogc:wcs':'wcs', # ogc-wcs web coverage service
-        'ogc:wcs-1.1.0-http-get-capabilities':'wcs', # ogc-wcs web coverage service (ver 1.1.0)
-        'ogc:wcts':'wcts', # ogc-wcts web coordinate transformation service
-        'ogc:wfs':'wfs', # ogc-wfs web feature service
-        'ogc:wfs-1.0.0-http-get-capabilities':'wfs', # ogc-wfs web feature service (ver 1.0.0)
-        'ogc:wfs-g':'wfs', # ogc-wfs-g gazzetteer service
-        'ogc:wmc':'wmc', # ogc-wmc web map context
-        'ogc:wms':'wms', # ogc-wms web map service
-        'ogc:wms-1.1.1-http-get-capabilities':'wms', # ogc-wms capabilities service (ver 1.1.1)
-        'ogc:wms-1.3.0-http-get-capabilities':'wms', # ogc-wms capabilities service (ver 1.3.0)
-        'ogc:wms-1.1.1-http-get-map':'wms', # ogc web map service (ver 1.1.1)
-        'ogc:wms-1.3.0-http-get-map':'wms', # ogc web map service (ver 1.3.0)
-        'ogc:wmts':'wmts', # ogc-wmts web map tiled service
-        'ogc:wmts-1.0.0-http-get-capabilities':'wmts', # ogc-wmts capabilities service (ver 1.0.0)
-        'ogc:sos-1.0.0-http-get-observation':'sos', # ogc-sos get observation (ver 1.0.0)
-        'ogc:sos-1.0.0-http-post-observation':'sos', # ogc-sos get observation (post) (ver 1.0.0)
-        'ogc:wns':'wns', # ogc-wns web notification service
-        'ogc:wps':'wps', # ogc-wps web processing service
-        #'ogc:ows-c':'', # ogc ows context
-        'tms':'tms', # tiled map service
-        'www:download-1.0-ftp-download':'ftp', # file for download through ftp
-        'www:download-1.0-http-download':'http', # file for download
-        #'file:geo':'', # gis file
-        #'file:raster':'', # gis raster file
-        'www:link-1.0-http-ical':'ical', # icalendar (url)
-        'www:link-1.0-http-link':'http', # web address (url)
-        #'doi':'', # digital object identifier (doi)
-        'www:link-1.0-http-partners':'http', # partner web address (url)
-        'www:link-1.0-http-related':'http', # related link (url)
-        'www:link-1.0-http-rss':'http', # rss news feed (url)
-        'www:link-1.0-http-samples':'http', # showcase product (url)
-        #'db:postgis':'', # postgis database table
-        #'db:oracle':'', # oracle database table
-        'www:link-1.0-http-opendap':'http', # opendap url
-        #'rbnb:dataturbine':'', # data turbine
-        #'ukst':'', # unknown service type
-    }
-    protocol = resource_locator.get('protocol').lower().strip()
-    resource_type = protocols.get(protocol)
-    if resource_type:
-        return resource_type
+    # Delegate to CSWHarvester
+    def get_original_url(self, harvest_object_id):
+        '''
+        [optional]
 
-    import mimetypes
-    url = resource_locator.get('url').lower().strip()
+        This optional but very recommended method allows harvesters to return
+        the URL to the original remote document, given a Harvest Object id.
+        Note that getting the harvest object you have access to its guid as
+        well as the object source, which has the URL.
+        This URL will be used on error reports to help publishers link to the
+        original document that has the errors. If this method is not provided
+        or no URL is returned, only a link to the local copy of the remote
+        document will be shown.
 
-    resource_types = {
-        # OGC
-        'wms': ('service=wms', 'geoserver/wms', 'mapserver/wmsserver', 'com.esri.wms.Esrimap', 'service/wms'),
-        'wfs': ('service=wfs', 'geoserver/wfs', 'mapserver/wfsserver', 'com.esri.wfs.Esrimap'),
-        'wcs': ('service=wcs', 'geoserver/wcs', 'imageserver/wcsserver', 'mapserver/wcsserver'),
-        'sos': ('service=sos',),
-        'csw': ('service=csw',),
-        # ESRI
-        'kml': ('mapserver/generatekml',),
-        'arcims': ('com.esri.esrimap.esrimap',),
-        'arcgis_rest': ('arcgis/rest/services',),
-    }
+        Examples:
+            * For a CKAN record: http://{ckan-instance}/api/rest/{guid}
+            * For a WAF record: http://{waf-root}/{file-name}
+            * For a CSW record: http://{csw-server}/?Request=GetElementById&Id={guid}&...
 
-    if sys.version_info[0] < 3:
-        for resource_type, parts in resource_types.iteritems():
-            if any(part in url for part in parts):
-                return resource_type
-    else:
-        for resource_type, parts in resource_types.items():
-            if any(part in url for part in parts):
-                return resource_type
+        :param harvest_object_id: HarvestObject id
+        :returns: A string with the URL to the original document
+        '''
+        # # Delegate
+        return self._get_csw_harvester().gather_stage(harvest_object_id)
+
+    # NOT overriding waiting for merge #258
+    # delegate to CSWHarvester
+    def gather_stage(self, harvest_job):
+        # '''
+        # The gather stage will receive a HarvestJob object and will be
+        # responsible for:
+        #     - gathering all the necessary objects to fetch on a later.
+        #       stage (e.g. for a CSW server, perform a GetRecords request)
+        #     - creating the necessary HarvestObjects in the database, specifying
+        #       the guid and a reference to its job. The HarvestObjects need a
+        #       reference date with the last modified date for the resource, this
+        #       may need to be set in a different stage depending on the type of
+        #       source.
+        #     - creating and storing any suitable HarvestGatherErrors that may
+        #       occur.
+        #     - returning a list with all the ids of the created HarvestObjects.
+        #     - to abort the harvest, create a HarvestGatherError and raise an
+        #       exception. Any created HarvestObjects will be deleted.
+
+        # :param harvest_job: HarvestJob object
+        # :returns: A list of HarvestObject ids
+        # '''
+
+        # #TODO ########################################################################
+        # # be sure to reload config
+        # self._set_source_config(harvest_job.source.config)
+        # #########################################################################
+
+        return self._get_csw_harvester().gather_stage(harvest_job)
+        
+    # NOT overriding waiting for merge #258
+    # Delegating to CSWHarvester
+    def fetch_stage(self,harvest_object):
+        '''
+        The fetch stage will receive a HarvestObject object and will be
+        responsible for:
+            - getting the contents of the remote object (e.g. for a CSW server,
+            perform a GetRecordById request).
+            - saving the content in the provided HarvestObject.
+            - creating and storing any suitable HarvestObjectErrors that may
+            occur.
+            - returning True if everything is ok (ie the object should now be
+            imported), "unchanged" if the object didn't need harvesting after
+            all (ie no error, but don't continue to import stage) or False if
+            there were errors.
+
+        :param harvest_object: HarvestObject object
+        :returns: True if successful, 'unchanged' if nothing to import after
+                all, False if not successful
+        '''
+        return self._get_csw_harvester().fetch_stage(harvest_object)
+
+    # From parent SpatialHarvester
+    def import_stage(self, harvest_object):
+        '''
+        The import stage will receive a HarvestObject object and will be
+        responsible for:
+            - performing any necessary action with the fetched object (e.g.
+              create, update or delete a CKAN package).
+              Note: if this stage creates or updates a package, a reference
+              to the package should be added to the HarvestObject.
+            - setting the HarvestObject.package (if there is one)
+            - setting the HarvestObject.current for this harvest:
+               - True if successfully created/updated
+               - False if successfully deleted
+            - setting HarvestObject.current to False for previous harvest
+              objects of this harvest source if the action was successful.
+            - creating and storing any suitable HarvestObjectErrors that may
+              occur.
+            - creating the HarvestObject - Package relation (if necessary)
+            - returning True if the action was done, "unchanged" if the object
+              didn't need harvesting after all or False if there were errors.
+
+        NB You can run this stage repeatedly using 'paster harvest import'.
+
+        :param harvest_object: HarvestObject object
+        :returns: True if the action was done, "unchanged" if the object didn't
+                  need harvesting after all or False if there were errors.
+        '''
+
+        log = logging.getLogger(__name__ + '.import')
+        log.debug('Import stage for harvest object: %s', harvest_object.id)
+
+        # check arguments
+        if not harvest_object:
+            log.error('No harvest object received')
+            return False
+        elif harvest_object.content is None:
+            self._save_object_error('Empty content for object {0}'.format(harvest_object.id), harvest_object, 'Import')
+            return False
+
+
+        # read configuration
+        self._set_source_config(harvest_object.source.config)
+
+        # prepare context
+        context = {
+            'model': model,
+            'session': model.Session,
+            'user': self._get_user_name(),
+            # Tunnelled to pass to spatial_plugin
+            'config': dict(self.source_config)
+        }
+
+        # Flag previous object as not current anymore
+        # Get the last harvested object (if any)
+        previous_object = model.Session.query(HarvestObject) \
+                            .filter(HarvestObject.guid==harvest_object.guid) \
+                            .filter(HarvestObject.current==True) \
+                            .first()
+                            
+        if previous_object and not self.force_import:
+            previous_object.current = False
+            previous_object.add()
+
+        ##############################################
+
+        # evaluate the new status
+        if self.force_import:
+            status = 'change'
+        else:
+            status = self._get_object_extra(harvest_object, 'status')
+
+        if status == 'delete':
+            return self._delete(context, harvest_object)
+
+        ###################
+        # TODO guess the 'right' ISpatialHarvester
+        
+        # Validate ISO document
+        is_valid, _status, _plugin, _validator = self._validate(harvest_object)
+        if not is_valid:
+            # If validation errors were found, import will stop unless
+            # harvester validation flag says otherwise
+            # TODO better policy, based on cumulated _status
+            #  a boolean can't express too much,
+            #  we should be able to ask
+            if not self.source_config.get('continue_on_validation_errors') \
+                    and \
+                    not p.toolkit.asbool(config.get('ckanext.spatial.harvest.continue_on_validation_errors', False)):
+                return False
+        # Build the package dict    
+        package_dict = None
+        if not _plugin:
+            # if not spatial_plugins:
+            log.error('unable to guess the format using validator, '+\
+                'fallback to default iso19139 implementation')
+
+            csw_harvester = self._get_csw_harvester()
+            
+            # fallback to default parent implementation
+                # TODO rise a ticket: unable to extend CSWHarvester
+                # super.get_package_dict(iso_values, harvest_object)
+                # overlaps but not implements ISpatialHarvester method
+                # harvester.get_package_dict(context, {
+                #     'package_dict': package_dict,
+                #     'iso_values': parsed_values,
+                #     'xml_tree': parsed_values.xml_tree,
+                #     'harvest_object': harvest_object,
+                # })
+
+            if csw_harvester:
+                # Parse ISO document
+                try:
+                    from ckanext.spatial.model import ISODocument
+                    iso_parser = ISODocument(harvest_object.content)
+                    parsed_values = iso_parser.read_values()
+                except Exception as e:
+                    self._save_object_error('Error parsing ISO document for object {0}: {1}'.format(harvest_object.id, six.text_type(e)),
+                                            harvest_object, 'Import')
+                    return False
+
+                package_dict = csw_harvester.get_package_dict(parsed_values, harvest_object)
+        else:
+            # a plugin has been found and used to parse
+            # let's use that implementation to provide a package
+
+            # Parse ISO document
+            # TODO use _status and policy to understand which parser to use
+            # this may require an interface method from ISpatialHarvester
+            try:
+                parser = ISO19115Document(harvest_object.content)
+                parsed_values = parser.read_values()
+            except Exception as e:
+                self._save_object_error('Error parsing ISO document for object {0}: {1}'.format(harvest_object.id, six.text_type(e)),
+                                        harvest_object, 'Import')
+                return False
+            
+            package_dict = _plugin.get_package_dict(context, {
+                'package_dict': package_dict,
+                'iso_values': parsed_values,
+                # TODO ticket
+                # should be passed by base parser.read_values()
+                # but it's not there...
+                'xml_tree': parsed_values.get('xml_tree',etree.fromstring(harvest_object.content)),
+                'harvest_object': harvest_object,
+            })
+
+        if not package_dict:
+            log.error('No package dict returned, aborting import for object {0}'.format(harvest_object.id))
+            return False
+
+        # Update GUID with the one on the document
+        iso_guid = parsed_values.get('guid')
+        self._set_guid(harvest_object, iso_guid)
+        
+        # Get document modified date
+        metadata_date = parsed_values.get('metadata-date')
+        if metadata_date:
+            import dateutil
+            try:
+                harvest_object.metadata_modified_date = dateutil.parser.parse(metadata_date, ignoretz=True)
+            except ValueError:
+                self._save_object_error('Could not extract reference date for object {0} ({1})'
+                            .format(harvest_object.id, parsed_values['metadata-date']), harvest_object, 'Import')
+                return False
+        else:
+            import datetime
+            #TODO log warn!
+            harvest_object.metadata_modified_date = datetime.datetime.today()
+
+        ###################
+
+        # The default package schema does not like Upper case tags
+        tag_schema = logic.schema.default_tags_schema()
+        tag_schema['name'] = [not_empty, six.text_type]
+        try:
+            if status == 'new':
+
+                # TODO doublecheck when to .add()
+                # Flag this object as the current one
+                harvest_object.current = True
+                harvest_object.add()
+
+                # create
+                package_schema = logic.schema.default_create_package_schema()
+                package_schema['tags'] = tag_schema
+                context['schema'] = package_schema
+                self._new(context, log, harvest_object, package_dict)
+
+            else:
+
+                # update or delete
+                package_schema = logic.schema.default_update_package_schema()
+                package_schema['tags'] = tag_schema
+                context['schema'] = package_schema
+
+                if status == 'change':
+
+                    # TODO doublecheck when to .add()
+                    # Flag this object as the current one
+                    harvest_object.current = True
+                    harvest_object.add()
+                    
+                    # TODO restore if deleted
+                    if harvest_object.package and harvest_object.package.state=='deleted':
+                        # undelete
+                        package_dict['state']='active'
+
+                        # update
+                        self._change(context, log, harvest_object, package_dict)
+
+                    # Check if the modified date is more recent
+                    elif not self.force_import \
+                            and previous_object and \
+                            harvest_object.metadata_modified_date <= previous_object.metadata_modified_date:
+                        log.info('Document with GUID %s unchanged, skipping...' % (harvest_object.guid))
+                        # Assign the previous job id to the new object to
+                        # avoid losing history
+                        harvest_object.harvest_job_id = previous_object.job.id
+                        harvest_object.add()
+                        # Delete the previous object to avoid cluttering the object table
+                        previous_object.delete()
+                    else:
+                        # update
+                        self._change(context, log, harvest_object, package_dict)
+
+                self._index(context, log, harvest_object, package_dict)
+        except p.toolkit.ValidationError as e:
+            self._save_object_error('Validation Error: %s' % six.text_type(e.error_summary), harvest_object, 'Import')
+            return False 
+
+        model.Session.commit()
+
+        return True
+
+    def _set_guid(self, harvest_object, iso_guid):
+        import uuid
+        import hashlib
+        if iso_guid and harvest_object.guid != iso_guid:
+            # First make sure there already aren't current objects
+            # with the same guid
+            existing_object = model.Session.query(HarvestObject.id) \
+                            .filter(HarvestObject.guid==iso_guid) \
+                            .filter(HarvestObject.current==True) \
+                            .first()
+            if existing_object:
+                self._save_object_error('Object {0} already has this guid {1}'.format(existing_object.id, iso_guid),
+                        harvest_object, 'Import')
+                return False
+
+            harvest_object.guid = iso_guid
+            harvest_object.add()
+
+        # Generate GUID if not present (i.e. it's a manual import)
+        if not harvest_object.guid:
+            m = hashlib.md5()
+            m.update(harvest_object.content.encode('utf8', 'ignore'))
+            harvest_object.guid = m.hexdigest()
+            harvest_object.add() #????
+
+    def _validate(self, harvest_object):
+        '''
+            :returns: [True|False] status plugin_name
+            if True some validator has passed (first win)
+             in that case also the plugin is passed
+             (True, status[plugin_name]['errors'], plugin, validator)
+            if False the plugin name is false and a report 
+             can be located under:
+             status[plugin_name]['errors']
+        '''
+        # Add any custom validators from extensions
+        is_valid = False
+        status = {}
+        for plugin in p.PluginImplementations(ISpatialHarvester):
+            
+            # TODO priority / preferences / order (let's define harvester options to use into get_validators())?
+            for validator in plugin.get_validators():
+                # TODO this assume document as xml, we can do better... (using csw outputformat)
+                _errors=[]
+                try:
+                    # TODO
+                    # report:
+                    #   File "/srv/app/src_extensions/ckanext-spatial/ckanext/spatial/harvesters/base.py", line 827, in _validate_document
+                    #     valid, profile, errors = validator.is_valid(xml)
+                    #     ValueError: need more than 2 values to unpack
+                    # is_valid, _profile, _errors = self._validate_document(harvest_object.content, harvest_object, validator)
+                    # is_valid interface is also specifying an different tuple:
+                    # class XsdValidator(BaseValidator):
+                    # '''Base class for validators that use an XSD schema.'''
+                    # @classmethod
+                    # def _is_valid(cls, xml, xsd_filepath, xsd_name):                
+                    # Returns:
+                    #   (is_valid, [(error_message_string, error_line_number)])
+                    # which instead (as is currently used) should be:
+                    #   (is_valid, [(error_line_number, error_message_string)])
+
+                    # if csw outputformat application/xml
+                    
+                    document_string = re.sub('<\?xml(.*)\?>', '', harvest_object.content)
+                    try:
+                        _xml = etree.fromstring(document_string)
+                    except etree.XMLSyntaxError as e:
+                        self._save_object_error('Could not parse XML file: {0}'.format(six.text_type(e)), harvest_object, 'Import')
+                        return False, None, []
+
+                    is_valid, _errors = validator.is_valid(_xml)
+                except Exception as e:
+                    is_valid = False
+                    _errors.insert(0, ('{0} Validation Error'.format(str(e)), e))
+
+                plugin_name = plugin.name# or plugin.__class__.__name__
+
+                # accumulate errors by (profile and plugin)
+                status.update({plugin_name:{'status':is_valid, 'validator':validator.name, 'errors':_errors}})
+                
+                # The first win, order policy matter!
+                if is_valid:
+                    return is_valid, status, plugin, validator
+                    
+                # continue iterating to guess the right profile
+
+        return is_valid, status, None, None
+
+    def _delete(self, log, context, harvest_object):
+        # Delete package
+        context.update({
+            'ignore_auth': True,
+        })
+        p.toolkit.get_action('package_delete')(context, {'id': harvest_object.package_id})
+        log.info('Deleted package {0} with guid {1}'.format(harvest_object.package_id, harvest_object.guid))
+        return True
+
+    def _change(self, context, log, harvest_object, package_dict):
+        package_dict['id'] = harvest_object.package_id
+        try:
+            package_id = p.toolkit.get_action('package_update')(context, package_dict)
+            log.info('Updated package %s with guid %s', package_id, harvest_object.guid)
+        except p.toolkit.ValidationError as e:
+            self._save_object_error('Validation Error: %s' % six.text_type(e.error_summary), harvest_object, 'Import')
+            return False
+
+    def _index(self, context, log, harvest_object, package_dict):
+
+        # Reindex the corresponding package to update the reference to the
+        # harvest object
+        if ((config.get('ckanext.spatial.harvest.reindex_unchanged', True) != 'False'
+            or self.source_config.get('reindex_unchanged') != 'False')
+            and harvest_object.package_id):
+            context.update({'validate': False, 'ignore_auth': True})
+            try:
+                package_dict = logic.get_action('package_show')(context,
+                    {'id': harvest_object.package_id})
+            except p.toolkit.ObjectNotFound:
+                # TODO LOG?!?!
+                pass
+            else:
+                for extra in package_dict.get('extras', []):
+                    if extra['key'] == 'harvest_object_id':
+                        extra['value'] = harvest_object.id
+                if package_dict:
+                    from ckan.lib.search.index import PackageSearchIndex
+                    PackageSearchIndex().index_package(package_dict)
+        
+    def _new(self, context, log, harvest_object, package_dict):
+        package_schema = context['schema']
+        # We need to explicitly provide a package ID, otherwise ckanext-spatial
+        # won't be be able to link the extent to the package.
+        import uuid
+        package_dict['id'] = six.text_type(uuid.uuid4())
+        package_schema['id'] = [six.text_type]
+
+        # Save reference to the package on the object
+        harvest_object.package_id = package_dict['id']
+        harvest_object.add()
+        # Defer constraints and flush so the dataset can be indexed with
+        # the harvest object id (on the after_show hook from the harvester
+        # plugin)
+        model.Session.execute('SET CONSTRAINTS harvest_object_package_id_fkey DEFERRED')
+        model.Session.flush()
+        
+        package_id = p.toolkit.get_action('package_create')(context, package_dict)
+        log.info('Created new package %s with guid %s', package_id, harvest_object.guid)
     
-
-    file_types = {
-        'kml' : ('kml',),
-        'kmz': ('kmz',),
-        'gml': ('gml',),
-        'tif': ('tif','tiff',),
-        'shp': ('shp',),
-        'zip': ('zip',)
-    }
-
-    if sys.version_info[0] < 3:
-        for file_type, extensions in file_types.iteritems():
-            if any(url.endswith(extension) for extension in extensions):
-                return file_type
-    else:
-        for file_type, extensions in file_types.items():
-            if any(url.endswith(extension) for extension in extensions):
-                return file_type
-
-    resource_format, encoding = mimetypes.guess_type(url)
-    if resource_format:
-        return resource_format
-
-    return None
-
 #####################################################
 # TOOLS
 #####################################################

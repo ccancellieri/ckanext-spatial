@@ -126,6 +126,7 @@ def guess_resource_format(resource_locator, use_mimetypes=True):
         #'db:postgis':'', # postgis database table
         #'db:oracle':'', # oracle database table
         'www:link-1.0-http-opendap':'http', # opendap url
+        'www:link':'http',
         #'rbnb:dataturbine':'', # data turbine
         #'ukst':'', # unknown service type
     }

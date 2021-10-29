@@ -27,11 +27,7 @@ class ISO19115Harvester(CSWHarvester, SingletonPlugin):
     A Harvester for CSW servers
     '''
     implements(IHarvester)
-
-    # def __init__(self):
-        #_csw = CSWHarvester()
-        # super(SpatialHarvester, self).__init__()
-
+    
 # IHarvester
 
     # From parent
@@ -61,10 +57,11 @@ class ISO19115Harvester(CSWHarvester, SingletonPlugin):
         :returns: A dictionary with the harvester descriptors
         '''
         return {
-            'name': 'iso19115_csw_harvester',
+            'name': 'iso19115_csw_harvester_DEPRECATED',
             'title': 'ISO19115 CSW based',
             'description': 'A server that implements OGC\'s Catalog Service for the Web (CSW) standard'
             }
+
 
     # From parent CSWHarvester
     # From parent SpatialHarvester
@@ -396,7 +393,6 @@ class ISO19115Harvester(CSWHarvester, SingletonPlugin):
             #TODO log warn!
             harvest_object.metadata_modified_date = datetime.datetime.today()
 
-        
         ###################
 
         # The default package schema does not like Upper case tags
@@ -462,7 +458,6 @@ class ISO19115Harvester(CSWHarvester, SingletonPlugin):
 
         return True
 
-    
     def _set_guid(self, harvest_object, iso_guid):
         import uuid
         import hashlib

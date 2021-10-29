@@ -55,8 +55,8 @@ https://docs.ckan.org/projects/ckanext-spatial/en/latest/
     waf_harvester=ckanext.spatial.harvesters:WAFHarvester
     doc_harvester=ckanext.spatial.harvesters:DocHarvester
     
-    iso19115_harvester=ckanext.spatial.harvesters.iso19115.harvester:ISO19115Harvester
-    iso19115=ckanext.spatial.harvesters.iso19115.spatial_harvester:ISO19115SpatialHarvester
+    # iso19115_harvester=ckanext.spatial.harvesters.iso19115.harvester:ISO19115Harvester
+    iso19115_harvester=ckanext.spatial.harvesters.iso19115.spatial_harvester:ISO19115SpatialHarvester
 
     # Legacy harvesters
     gemini_csw_harvester=ckanext.spatial.harvesters.gemini:GeminiCswHarvester
