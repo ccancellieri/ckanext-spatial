@@ -1,3 +1,4 @@
+from datetime import date
 import re
 import six
 from six.moves.urllib.parse import urlparse, urlunparse, urlencode
@@ -202,8 +203,8 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
                 tags.append({'name': tag})
 
         package_dict = {
-            'title': iso_values['title'],
-            'notes': iso_values['abstract'],
+            'title': iso_values['title'].decode('utf-8','ignore'),
+            'notes': iso_values['abstract'].decode('utf-8','ignore'),
             'tags': tags,
             'resources': [],
         }
@@ -385,6 +386,19 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
 
         extras['lineage'] = iso_values.get('lineage')
 
+        for key in extras.keys():
+            # move schemas up for scheming
+            if key in ['guid','convert_from_extras','contact-email',
+                    'coupled-resource','frequency-of-update',
+                    'graphic-preview-description','graphic-preview-description','graphic-preview-file','graphic-preview-file',
+                    'lineage','metadata-date','metadata-language','completed','resource-type',
+                    'licence','access_constraints',
+                    # 'responsible-party','dataset-reference-date'
+                    'spatial',
+                    'spatial-data-service-type','spatial-reference-system']:
+                package_dict[key] = extras.pop(key)
+# Error: {'__junk': ["The input field [('responsible-party', 0, 'name'), ('dataset-reference-date', 0, 'value'), ('dataset-reference-date', 0, 'type'), ('responsible-party', 0, 'roles')] was not expected."]} unchanged, skipping...
+# Error: {'  junk': "The input field [('responsible-party', 0, 'name'), ('dataset-reference-date', 0, 'value'), ('dataset-reference-date', 0, 'type'), ('responsible-party', 0, 'roles')] was not expected."}
         # Add default_extras from config
         default_extras = self.source_config.get('default_extras',{})
         if default_extras:
@@ -409,6 +423,7 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
                 extras_as_dict.append({'key': key, 'value': value})
 
         package_dict['extras'] = extras_as_dict
+
 
         return package_dict
 
@@ -633,7 +648,8 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
                                             harvest_object, 'Import')
                     return False
 
-                package_dict = csw_harvester.get_package_dict(parsed_values, harvest_object)
+                # package_dict = csw_harvester.get_package_dict(parsed_values, harvest_object)
+                package_dict = self._fault_tolerant_get_package_dict(parsed_values, harvest_object)
         else:
             # a plugin has been found and used to parse
             # let's use that implementation to provide a package
@@ -682,6 +698,11 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
             #TODO log warn!
             harvest_object.metadata_modified_date = datetime.datetime.today()
 
+
+        ###################
+        # TODO
+        package_dict['type']='iso19115'
+
         ###################
 
         # The default package schema does not like Upper case tags
@@ -695,11 +716,27 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
                 harvest_object.current = True
                 harvest_object.add()
 
-                # create
-                package_schema = logic.schema.default_create_package_schema()
-                package_schema['tags'] = tag_schema
-                context['schema'] = package_schema
-                self._new(context, log, harvest_object, package_dict)
+                # Check for scheming plugin support
+                import ckanext.scheming.logic as l
+                scheming_dataset_schema_list = l.scheming_dataset_schema_list
+                scheming_dataset_schema_show = l.scheming_dataset_schema_show
+                supported_schemas = scheming_dataset_schema_list(context, package_dict)
+                if supported_schemas:
+                    log.info('Available schemas: {}'.format(str(supported_schemas)))
+                    # create
+                    for s in supported_schemas:
+                        if package_dict['type'] == s:
+                            log.info('Using schema from scheming plugin: {}'.format(s))
+                            # package_schema = scheming_dataset_schema_show(context, package_dict)
+                            if 'schema' in context:
+                                context.pop('schema')
+                            return self._new(context, log, harvest_object, package_dict) 
+                # fallback to default
+                else:
+                    context['schema'] = logic.schema.default_package_schema()
+                
+                # package_schema['tags'] = tag_schema
+                return self._new(context, log, harvest_object, package_dict)
 
             else:
 
@@ -740,11 +777,11 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
 
                 self._index(context, log, harvest_object, package_dict)
         except p.toolkit.ValidationError as e:
-            self._save_object_error('Validation Error: %s' % six.text_type(e.error_summary), harvest_object, 'Import')
+            log.error('Error: {} unchanged, skipping...'.format(str(e)))
+            self._save_object_error('Error: %s' % six.text_type(e.error_summary), harvest_object, 'Import')
             return False 
 
         model.Session.commit()
-
         return True
 
     def _set_guid(self, harvest_object, iso_guid):
@@ -846,12 +883,9 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
 
     def _change(self, context, log, harvest_object, package_dict):
         package_dict['id'] = harvest_object.package_id
-        try:
-            package_id = p.toolkit.get_action('package_update')(context, package_dict)
-            log.info('Updated package %s with guid %s', package_id, harvest_object.guid)
-        except p.toolkit.ValidationError as e:
-            self._save_object_error('Validation Error: %s' % six.text_type(e.error_summary), harvest_object, 'Import')
-            return False
+        package_id = p.toolkit.get_action('package_update')(context, package_dict)
+        log.info('Updated package %s with guid %s', package_id, harvest_object.guid)
+
 
     def _index(self, context, log, harvest_object, package_dict):
 
@@ -876,15 +910,16 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
                     PackageSearchIndex().index_package(package_dict)
         
     def _new(self, context, log, harvest_object, package_dict):
-        package_schema = context['schema']
+
         # We need to explicitly provide a package ID, otherwise ckanext-spatial
         # won't be be able to link the extent to the package.
         import uuid
         package_dict['id'] = six.text_type(uuid.uuid4())
-        package_schema['id'] = [six.text_type]
+        # package_schema['id'] = [six.text_type]
+        package = p.toolkit.get_action('package_create')(context, package_dict)
 
         # Save reference to the package on the object
-        harvest_object.package_id = package_dict['id']
+        harvest_object.package_id = package['id']
         harvest_object.add()
         # Defer constraints and flush so the dataset can be indexed with
         # the harvest object id (on the after_show hook from the harvester
@@ -892,9 +927,9 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
         model.Session.execute('SET CONSTRAINTS harvest_object_package_id_fkey DEFERRED')
         model.Session.flush()
         
-        package_id = p.toolkit.get_action('package_create')(context, package_dict)
-        log.info('Created new package %s with guid %s', package_id, harvest_object.guid)
-    
+        log.info('Created new package %s with guid %s', package['id'], harvest_object.guid)
+        return True
+        
 #####################################################
 # TOOLS
 #####################################################
