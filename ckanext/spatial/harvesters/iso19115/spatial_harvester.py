@@ -166,31 +166,28 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
 
     # force_import = False
 
+    def _add(self, to, from_dict, if_key):
+            val= from_dict.get(if_key)
+            if val:
+                to[if_key] = val
+
     # delegate
     # TODO waiting for pull request merge
     def _guess_resource_format(self, resource_locator, use_mimetypes=True):
         import ckanext.spatial.harvesters.base as b
         return b.guess_resource_format(resource_locator, use_mimetypes=True)
 
+
     def _fault_tolerant_get_package_dict(self, iso_values, harvest_object):
-        '''
-        DEPRECATED: should be used untill PR on master are accepted
-
-        Constructs a package_dict suitable to be passed to package_create or
-        package_update. See documentation on
-        ckan.logic.action.create.package_create for more details
-
-        '''
 
         from string import Template
         from datetime import datetime
         from six.moves.urllib.parse import urlparse
-        # from owslib import wms
-        # from lxml import etree
+
+        #####################################################
         from ckanext.harvest.harvesters.base import munge_tag
         from ckan.lib.helpers import json
         tags = []
-
         if 'tags' in iso_values:
             do_clean = self.source_config.get('clean_tags')
             tags_val = [munge_tag(tag) if do_clean else tag[:100] for tag in iso_values['tags']]
@@ -201,6 +198,7 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
         if default_tags:
             for tag in default_tags:
                 tags.append({'name': tag})
+        #####################################################
 
         package_dict = {
             'title': iso_values['title'].decode('utf-8','ignore'),
@@ -209,12 +207,15 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
             'resources': [],
         }
 
+        #####################################################
         # We need to get the owner organization (if any) from the harvest
         # source dataset
         source_dataset = model.Package.get(harvest_object.source.id)
         if source_dataset.owner_org:
             package_dict['owner_org'] = source_dataset.owner_org
+        #####################################################
 
+        #####################################################
         # Package name
         package = harvest_object.package
         if package is None or package.title != iso_values['title']:
@@ -226,37 +227,140 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
             package_dict['name'] = name
         else:
             package_dict['name'] = package.name
+        #####################################################
 
-        extras = {
-            'guid': harvest_object.guid,
-            'spatial_harvester': True,
-        }
 
-        # Just add some of the metadata as extras, not the whole lot
-        for name in [
-            # Essentials
-            'spatial-reference-system',
-            'guid',
-            # Usefuls
-            'dataset-reference-date',
-            'metadata-language',  # Language
-            'metadata-date',  # Released
-            'coupled-resource',
-            'contact-email',
-            'frequency-of-update',
-            'spatial-data-service-type',
-        ]:
-            extras[name] = iso_values[name]
+        extras = {}
+        #     'guid': harvest_object.guid,
+        #     'spatial_harvester': True,
+        # }
 
-        if len(iso_values.get('progress', [])):
-            extras['progress'] = iso_values['progress'][0]
-        else:
-            extras['progress'] = ''
+        # # Just add some of the metadata as extras, not the whole lot
+        # for name in [
+        #     # Essentials
+        #     'spatial-reference-system',
+        #     'guid',
+        #     # Usefuls
+        #     'dataset-reference-date',
+        #     'metadata-language',  # Language
+        #     'metadata-date',  # Released
+        #     'coupled-resource',
+        #     'contact-email',
+        #     'frequency-of-update',
+        #     'spatial-data-service-type',
+        # ]:
+        #     extras[name] = iso_values[name]
 
-        if len(iso_values.get('resource-type', [])):
-            extras['resource-type'] = iso_values['resource-type'][0]
-        else:
-            extras['resource-type'] = ''
+
+        def add_extra(field):            
+            self._add(extras, iso_values, field)
+
+        # def add_responsible_party(parent_key):
+        #     if iso_values.get(parent_key):
+                # [
+                # {"individual-name": "", 
+                # "contact-info": {
+                #   "online-resource": "",
+                #   "email": "ad@m.in"
+                # },
+                # "organisation-name": "",
+                # "role": "originator",
+                # "position-name": ""}
+                # ]
+
+        # def add_data_format(parent_key):
+        #     if iso_values.get(parent_key):
+                # {
+                # name
+                # version
+                # }
+
+        # def add_resource_locator(parent_key):
+        #     if iso_values.get(parent_key):
+                # {
+                # url
+                # function
+                # name
+                # description
+                # protocol
+                # protocol-request
+                # application-profile
+                # distribution-format #*
+                # distributor-format #*
+                # offline #*
+                # transfer-size
+                # units-of-distribution
+                # }
+
+        add_extra('guid')
+        add_extra('metadata-language')
+        add_extra('metadata-standard-name')
+        add_extra('metadata-standard-version')
+        add_extra('resource-type') #*
+        
+        # add_extra_value(extras, 'metadata-point-of-contact') #1..* 
+        # add_responsible_party
+        
+        # add_extra_value(extras, 'cited-responsible-party') #1..* # 19115-3
+        # add_responsible_party
+
+        # add_extra_value(extras, 'metadata-reference-date') #1..* # 19115-3
+        # ISOReferenceDate
+
+        add_extra('metadata-date') #1..* was #1
+
+        add_extra('spatial-reference-system')
+        # add_extra_value(extras, 'title') # see title and package name
+        # ISOLocalised
+
+        # add_extra_value(extras, 'alternate-title') #*
+
+        add_extra('dataset-reference-date') #1..*
+        # ISOReferenceDate
+
+        add_extra('unique-resource-identifier')
+        add_extra('unique-resource-identifier-full #DOI')
+        
+        # add_extra_value(extras, 'presentation-form') #*
+
+        # add_extra_value(extras, 'abstract') # see 'notes'
+
+        add_extra('purpose')
+        
+        # add_extra_value(extras, 'responsible-organisation') #1..*
+        # add_responsible_party
+        # Save responsible organization roles
+        if iso_values['responsible-organisation']:
+            parties = {}
+            for party in iso_values['responsible-organisation']:
+                if party['organisation-name'] in parties:
+                    if not party['role'] in parties[party['organisation-name']]:
+                        parties[party['organisation-name']].append(party['role'])
+                else:
+                    parties[party['organisation-name']] = [party['role']]
+            extras['responsible-party'] = [{'name': k, 'roles': v} for k, v in parties.items()]
+
+        
+        add_extra('frequency-of-update')
+        add_extra('maintenance-note')
+
+        add_extra('progress') #*
+        
+        add_extra('keywords') #* TODO TAGS?
+
+        add_extra('keyword-inspire-theme') #*
+        add_extra('keyword-controlled-other') #*
+        
+        # add_extra_value(extras, 'usage') #*
+        # ISOUsage
+
+        add_extra('limitations-on-public-access') #*
+        extras['access_constraints'] = iso_values.get('limitations-on-public-access', '')
+        add_extra('access-constraints') #*
+
+        #####################################################
+        add_extra('use-constraints')
+        add_extra('use-constraints-code') #ISO19115-3
 
         extras['licence'] = iso_values.get('use-constraints', '')
 
@@ -271,7 +375,7 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
             license_url_extracted = _extract_first_license_url(extras['licence'])
             if license_url_extracted:
                 extras['licence_url'] = license_url_extracted
-
+        #####################################################
 
         # Metadata license ID check for package
         use_constraints = iso_values.get('use-constraints')
@@ -291,35 +395,22 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
                 if package_license:
                     package_dict['license_id'] = package_license
                     break
+        #####################################################
 
 
-        extras['access_constraints'] = iso_values.get('limitations-on-public-access', '')
+        add_extra('legal-constraints-reference-code') #ISO19115-3
+        
+        # add_extra_value(extras, 'aggregation-info') #*
+        # ISOAggregationInfo
+        
 
-        # Grpahic preview
-        browse_graphic = iso_values.get('browse-graphic')
-        if browse_graphic:
-            browse_graphic = browse_graphic[0]
-            extras['graphic-preview-file'] = browse_graphic.get('file')
-            if browse_graphic.get('description'):
-                extras['graphic-preview-description'] = browse_graphic.get('description')
-            if browse_graphic.get('type'):
-                extras['graphic-preview-type'] = browse_graphic.get('type')
-
-
-        for key in ['temporal-extent-begin', 'temporal-extent-end']:
-            if len(iso_values.get(key, '')) > 0:
-                extras[key] = iso_values[key][0]
-
-        # Save responsible organization roles
-        if iso_values['responsible-organisation']:
-            parties = {}
-            for party in iso_values['responsible-organisation']:
-                if party['organisation-name'] in parties:
-                    if not party['role'] in parties[party['organisation-name']]:
-                        parties[party['organisation-name']].append(party['role'])
-                else:
-                    parties[party['organisation-name']] = [party['role']]
-            extras['responsible-party'] = [{'name': k, 'roles': v} for k, v in parties.items()]
+        
+        # add_extra_value(extras, 'bbox')
+        # ISOBoundingBox
+        add_extra('spatial') #ISO19115-3
+        add_extra('spatial-data-service-type')
+        add_extra('spatial-resolution')
+        add_extra('spatial-resolution-units')
 
         if len(iso_values.get('bbox',[])) > 0:
             bbox = iso_values['bbox'][0]
@@ -328,41 +419,73 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
             extras['bbox-south-lat'] = bbox['south']
             extras['bbox-west-long'] = bbox['west']
 
-            if iso_values.get('spatial'):
-                extras['spatial'] = iso_values['spatial']
+            try:
+                xmin = float(bbox['west'])
+                xmax = float(bbox['east'])
+                ymin = float(bbox['south'])
+                ymax = float(bbox['north'])
+            except ValueError as e:
+                self._save_object_error('Error parsing bounding box value: {0}'.format(six.text_type(e)),
+                                    harvest_object, 'Import')
             else:
-                try:
-                    xmin = float(bbox['west'])
-                    xmax = float(bbox['east'])
-                    ymin = float(bbox['south'])
-                    ymax = float(bbox['north'])
-                except ValueError as e:
-                    self._save_object_error('Error parsing bounding box value: {0}'.format(six.text_type(e)),
-                                        harvest_object, 'Import')
+                # Construct a GeoJSON extent so ckanext-spatial can register the extent geometry
+
+                # Some publishers define the same two corners for the bbox (ie a point),
+                # that causes problems in the search if stored as polygon
+                if xmin == xmax or ymin == ymax:
+                    extent_string = Template('{"type": "Point", "coordinates": [$x, $y]}').substitute(
+                        x=xmin, y=ymin
+                    )
+                    self._save_object_error('Point extent defined instead of polygon',
+                                    harvest_object, 'Import')
                 else:
-                    # Construct a GeoJSON extent so ckanext-spatial can register the extent geometry
+                    extent_string = self.extent_template.substitute(
+                        xmin=xmin, ymin=ymin, xmax=xmax, ymax=ymax
+                    )
+                extras['spatial'] = extent_string.strip()
 
-                    # Some publishers define the same two corners for the bbox (ie a point),
-                    # that causes problems in the search if stored as polygon
-                    if xmin == xmax or ymin == ymax:
-                        extent_string = Template('{"type": "Point", "coordinates": [$x, $y]}').substitute(
-                            x=xmin, y=ymin
-                        )
-                        self._save_object_error('Point extent defined instead of polygon',
-                                        harvest_object, 'Import')
-                    else:
-                        extent_string = self.extent_template.substitute(
-                            xmin=xmin, ymin=ymin, xmax=xmax, ymax=ymax
-                        )
-                    extras['spatial'] = extent_string.strip()
-        else:
-            log.debug('No spatial extent defined for this object')
 
+
+        add_extra('equivalent-scale') #*
+        add_extra('dataset-language') #*
+
+        add_extra('topic-category') #*
+        
+        add_extra('extent-controlled') #*
+        add_extra('extent-free-text') #*
+
+        # add_extra_value(extras, 'temporal-extent') #*
+        # ISOTemporalExtent
+        add_extra('temporal-extent-begin')
+        add_extra('temporal-extent-end')
+        # for key in ['temporal-extent-begin', 'temporal-extent-end']:
+        #     if len(iso_values.get(key, '')) > 0:
+        #         extras[key] = iso_values[key][0]
+
+
+        add_extra('vertical-extent') #*
+        add_extra('vertical-extent-crs') #* #ISO19115-3
+        add_extra('coupled-resource') #*
+        add_extra('additional-information-source')
+        
+        add_extra('data-format') #*
+        # add_data_format
+
+        add_extra('distributor') #*
+        # # add_responsible_party
+
+        # add_extra_value(extras, 'resource-locator') #*
+        # ISOResourceLocator
+        # add_extra_value(extras, 'resource-locator-identification') #*
+        # ISOResourceLocator
         resource_locators = iso_values.get('resource-locator', []) +\
             iso_values.get('resource-locator-identification', [])
 
         if len(resource_locators):
             for resource_locator in resource_locators:
+
+                # RESOURCES
+
                 url = resource_locator.get('url', '').strip()
                 if url:
                     resource = {}
@@ -377,28 +500,40 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
                     resource.update(
                         {
                             'url': url,
-                            'name': resource_locator.get('name') or p.toolkit._('Unnamed resource'),
-                            'description': resource_locator.get('description') or  '',
+                            'name': resource_locator.get('name').encode('utf-8'),
+                            'description': resource_locator.get('description').encode('utf-8') or  '',
+                            # add_resource_locator()
                             'resource_locator_protocol': resource_locator.get('protocol') or '',
                             'resource_locator_function': resource_locator.get('function') or '',
                         })
                     package_dict['resources'].append(resource)
 
-        extras['lineage'] = iso_values.get('lineage')
 
-        for key in extras.keys():
-            # move schemas up for scheming
-            if key in ['guid','convert_from_extras','contact-email',
-                    'coupled-resource','frequency-of-update',
-                    'graphic-preview-description','graphic-preview-description','graphic-preview-file','graphic-preview-file',
-                    'lineage','metadata-date','metadata-language','completed','resource-type',
-                    'licence','access_constraints',
-                    # 'responsible-party','dataset-reference-date'
-                    'spatial',
-                    'spatial-data-service-type','spatial-reference-system']:
-                package_dict[key] = extras.pop(key)
-# Error: {'__junk': ["The input field [('responsible-party', 0, 'name'), ('dataset-reference-date', 0, 'value'), ('dataset-reference-date', 0, 'type'), ('responsible-party', 0, 'roles')] was not expected."]} unchanged, skipping...
-# Error: {'  junk': "The input field [('responsible-party', 0, 'name'), ('dataset-reference-date', 0, 'value'), ('dataset-reference-date', 0, 'type'), ('responsible-party', 0, 'roles')] was not expected."}
+        add_extra('conformity-specification')
+        add_extra('conformity-pass')
+        add_extra('conformity-explanation')
+        add_extra('lineage')
+
+        # add_extra_value(extras, 'browse-graphic') #*
+        # ISOBrowseGraphic
+
+        # Grpahic preview
+        browse_graphic = iso_values.get('browse-graphic')
+        if browse_graphic:
+            browse_graphic = browse_graphic[0]
+            extras['graphic-preview-file'] = browse_graphic.get('file')
+            if browse_graphic.get('description'):
+                extras['graphic-preview-description'] = browse_graphic.get('description')
+            if browse_graphic.get('type'):
+                extras['graphic-preview-type'] = browse_graphic.get('type')
+
+
+        # add_extra_value(extras, 'author') #ISO19115-3
+        # ISOResponsibleParty
+
+        # add_extra_value(extras, 'citation') #1..* #ISO19115-3
+        # ISOCitation
+
         # Add default_extras from config
         default_extras = self.source_config.get('default_extras',{})
         if default_extras:
@@ -611,8 +746,6 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
             # If validation errors were found, import will stop unless
             # harvester validation flag says otherwise
             # TODO better policy, based on cumulated _status
-            #  a boolean can't express too much,
-            #  we should be able to ask
             if not self.source_config.get('continue_on_validation_errors') \
                     and \
                     not p.toolkit.asbool(config.get('ckanext.spatial.harvest.continue_on_validation_errors', False)):
@@ -650,6 +783,7 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
 
                 # package_dict = csw_harvester.get_package_dict(parsed_values, harvest_object)
                 package_dict = self._fault_tolerant_get_package_dict(parsed_values, harvest_object)
+                
         else:
             # a plugin has been found and used to parse
             # let's use that implementation to provide a package
@@ -716,25 +850,6 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
                 harvest_object.current = True
                 harvest_object.add()
 
-                # Check for scheming plugin support
-                import ckanext.scheming.logic as l
-                scheming_dataset_schema_list = l.scheming_dataset_schema_list
-                scheming_dataset_schema_show = l.scheming_dataset_schema_show
-                supported_schemas = scheming_dataset_schema_list(context, package_dict)
-                if supported_schemas:
-                    log.info('Available schemas: {}'.format(str(supported_schemas)))
-                    # create
-                    for s in supported_schemas:
-                        if package_dict['type'] == s:
-                            log.info('Using schema from scheming plugin: {}'.format(s))
-                            # package_schema = scheming_dataset_schema_show(context, package_dict)
-                            if 'schema' in context:
-                                context.pop('schema')
-                            return self._new(context, log, harvest_object, package_dict) 
-                # fallback to default
-                else:
-                    context['schema'] = logic.schema.default_package_schema()
-                
                 # package_schema['tags'] = tag_schema
                 return self._new(context, log, harvest_object, package_dict)
 
@@ -911,13 +1026,52 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
         
     def _new(self, context, log, harvest_object, package_dict):
 
+        # Check for scheming plugin support
+        import ckanext.scheming.logic as l
+        scheming_dataset_schema_list = l.scheming_dataset_schema_list
+        scheming_dataset_schema_show = l.scheming_dataset_schema_show
+        supported_schemas = scheming_dataset_schema_list(context, package_dict)
+        if supported_schemas:
+            log.info('Available schemas: {}'.format(str(supported_schemas)))
+            # create
+            for s in supported_schemas:
+                if package_dict['type'] == s:
+                    log.info('Using schema from scheming plugin: {}'.format(s))
+                    
+                    # remove schema from context, scheming will assign one.
+                    if 'schema' in context:
+                        schema = context.pop('schema')
+
+                    # get schema from scheming plugin
+                    package_schema = scheming_dataset_schema_show(context, package_dict)
+                    
+                    extras = package_dict.get('extras',{})
+                    
+                    for s in package_schema['dataset_fields']:
+                        
+                        # if 
+                        scheming_field = s['field_name']
+
+                        # TODO check for complex types
+                        if isinstance(scheming_field, str):
+                            matching = []
+                            for extra in list(extras):
+                                # if match: extract
+                                if scheming_field == extra['key']:
+                                    extras.remove(extra)
+                                    package_dict[extra['key']] = extra['value']
+                            
+        # fallback to default
+        else:
+            context['schema'] = logic.schema.default_package_schema()
+
         # We need to explicitly provide a package ID, otherwise ckanext-spatial
         # won't be be able to link the extent to the package.
         import uuid
         package_dict['id'] = six.text_type(uuid.uuid4())
         # package_schema['id'] = [six.text_type]
         package = p.toolkit.get_action('package_create')(context, package_dict)
-
+        
         # Save reference to the package on the object
         harvest_object.package_id = package['id']
         harvest_object.add()
