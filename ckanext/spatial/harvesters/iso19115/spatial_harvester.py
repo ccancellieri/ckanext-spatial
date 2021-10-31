@@ -147,7 +147,6 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
         # return None
 
 
-### TODO provide PR to master and remove
 
     # TODO removeme
     # We are extending concrete class SpatialHarvester 
@@ -162,14 +161,51 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
             'description': ''
             }
 
-    # source_config = {}
+### TODO provide PR to master and remove
 
-    # force_import = False
+    def _append_to_list(self, to, from_dict, if_key, or_default = None, decoded=True):
+        val = from_dict.get(if_key)
+        if val:
+            to.append({'key': if_key, 'value': self._decode(val)  if decoded else val})
+            return True
+        elif or_default:
+            to.append({'key': if_key, 'value': self._decode(or_default) if decoded else or_default})
+            return True
+        return False
 
-    def _add(self, to, from_dict, if_key):
-            val= from_dict.get(if_key)
-            if val:
-                to[if_key] = val
+    def _append_value_to_list(self, to, key, val, decoded=True):
+        
+        to.append({'key': key, 'value': self._decode(val)  if decoded else val})
+        return True
+
+    def _add_to_dict(self, to, from_dict, if_key, or_default = None, decoded=True):
+        val = from_dict.get(if_key)
+        if val:
+            to[if_key] = self._decode(val) if decoded else val
+            return True
+        elif or_default:
+            to[if_key] = self._decode(or_default) if decoded else or_default
+            return True
+        return False
+
+    def _decode(self, val):
+        if isinstance(val, unicode):
+            return val
+        elif isinstance(val, str):
+            return val#.decode().encode('utf-8','ignore')
+        else:
+            return val
+
+
+    def _add(self, to, from_dict, if_key, or_default = None):
+        val = from_dict.get(if_key)
+        if val:
+            to[if_key] = self._decode(val)
+            return True
+        elif or_default:
+            to[if_key] = self._decode(or_default)
+            return True
+        return False
 
     # delegate
     # TODO waiting for pull request merge
@@ -183,6 +219,13 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
         from string import Template
         from datetime import datetime
         from six.moves.urllib.parse import urlparse
+
+
+        package_dict = {}
+
+        def add_to_package(field_name, or_default = None):
+            return self._add(package_dict, iso_values, field_name)
+            
 
         #####################################################
         from ckanext.harvest.harvesters.base import munge_tag
@@ -201,11 +244,15 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
         #####################################################
 
         package_dict = {
-            'title': iso_values['title'].decode('utf-8','ignore'),
-            'notes': iso_values['abstract'].decode('utf-8','ignore'),
             'tags': tags,
             'resources': [],
         }
+
+        if not add_to_package('title'):
+            raise Exception('Title is mandatory')
+
+        if not add_to_package('abstract'):
+            raise Exception('Abstract is mandatory')
 
         #####################################################
         # We need to get the owner organization (if any) from the harvest
@@ -231,29 +278,14 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
 
 
         extras = {}
+        package_dict['extras'] = extras
+
+        def add_extra(field_name):            
+            return self._add(extras, iso_values, field_name)
+
         #     'guid': harvest_object.guid,
         #     'spatial_harvester': True,
         # }
-
-        # # Just add some of the metadata as extras, not the whole lot
-        # for name in [
-        #     # Essentials
-        #     'spatial-reference-system',
-        #     'guid',
-        #     # Usefuls
-        #     'dataset-reference-date',
-        #     'metadata-language',  # Language
-        #     'metadata-date',  # Released
-        #     'coupled-resource',
-        #     'contact-email',
-        #     'frequency-of-update',
-        #     'spatial-data-service-type',
-        # ]:
-        #     extras[name] = iso_values[name]
-
-
-        def add_extra(field):            
-            self._add(extras, iso_values, field)
 
         # def add_responsible_party(parent_key):
         #     if iso_values.get(parent_key):
@@ -314,12 +346,12 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
         # ISOLocalised
 
         # add_extra_value(extras, 'alternate-title') #*
-
-        add_extra('dataset-reference-date') #1..*
+####################################################################################################
+        #add_to_package('dataset-reference-date') #1..*
         # ISOReferenceDate
 
         add_extra('unique-resource-identifier')
-        add_extra('unique-resource-identifier-full #DOI')
+        add_extra('unique-resource-identifier-full') #DOI
         
         # add_extra_value(extras, 'presentation-form') #*
 
@@ -355,7 +387,7 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
         # ISOUsage
 
         add_extra('limitations-on-public-access') #*
-        extras['access_constraints'] = iso_values.get('limitations-on-public-access', '')
+        #!!! extras['access_constraints'] = iso_values.get('limitations-on-public-access', '')
         add_extra('access-constraints') #*
 
         #####################################################
@@ -500,8 +532,8 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
                     resource.update(
                         {
                             'url': url,
-                            'name': resource_locator.get('name').encode('utf-8'),
-                            'description': resource_locator.get('description').encode('utf-8') or  '',
+                            'name': resource_locator.get('name') or '',#.decode().encode('utf-8','ignore'),
+                            'description': resource_locator.get('description') or '',#.decode().encode('utf-8','ignore') or  '',
                             # add_resource_locator()
                             'resource_locator_protocol': resource_locator.get('protocol') or '',
                             'resource_locator_function': resource_locator.get('function') or '',
@@ -550,6 +582,7 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
                              harvest_object_id=harvest_object.id)
                  extras[key] = value
 
+        # TODO check why this was introduced...
         extras_as_dict = []
         for key, value in extras.items():
             if isinstance(value, (list, dict)):
@@ -558,7 +591,7 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
                 extras_as_dict.append({'key': key, 'value': value})
 
         package_dict['extras'] = extras_as_dict
-
+        
 
         return package_dict
 
@@ -920,7 +953,7 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
         # Generate GUID if not present (i.e. it's a manual import)
         if not harvest_object.guid:
             m = hashlib.md5()
-            m.update(harvest_object.content.encode('utf8', 'ignore'))
+            m.update(harvest_object.content)
             harvest_object.guid = m.hexdigest()
             harvest_object.add() #????
 
@@ -1036,6 +1069,7 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
             # create
             for s in supported_schemas:
                 if package_dict['type'] == s:
+                    import json
                     log.info('Using schema from scheming plugin: {}'.format(s))
                     
                     # remove schema from context, scheming will assign one.
@@ -1059,7 +1093,10 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
                                 # if match: extract
                                 if scheming_field == extra['key']:
                                     extras.remove(extra)
-                                    package_dict[extra['key']] = extra['value']
+                                    try:
+                                        package_dict[extra['key']] = json.loads(extra['value'])
+                                    except ValueError as ve:
+                                        package_dict[extra['key']] = extra['value']
                             
         # fallback to default
         else:
@@ -1070,19 +1107,24 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
         import uuid
         package_dict['id'] = six.text_type(uuid.uuid4())
         # package_schema['id'] = [six.text_type]
-        package = p.toolkit.get_action('package_create')(context, package_dict)
-        
-        # Save reference to the package on the object
-        harvest_object.package_id = package['id']
-        harvest_object.add()
-        # Defer constraints and flush so the dataset can be indexed with
-        # the harvest object id (on the after_show hook from the harvester
-        # plugin)
-        model.Session.execute('SET CONSTRAINTS harvest_object_package_id_fkey DEFERRED')
-        model.Session.flush()
-        
-        log.info('Created new package %s with guid %s', package['id'], harvest_object.guid)
-        return True
+        try:
+            package = p.toolkit.get_action('package_create')(context, package_dict)
+        except Exception as e:
+            log.error('Failed to harvest guid {}: {}'.format(harvest_object.guid, str(e)))
+            model.Session.rollback()
+            return False
+        else:
+            # Save reference to the package on the object
+            harvest_object.package_id = package['id']
+            harvest_object.add()
+            # Defer constraints and flush so the dataset can be indexed with
+            # the harvest object id (on the after_show hook from the harvester
+            # plugin)
+            model.Session.execute('SET CONSTRAINTS harvest_object_package_id_fkey DEFERRED')
+            model.Session.flush()
+            
+            log.info('Created new package %s with guid %s', package['id'], harvest_object.guid)
+            return True
         
 #####################################################
 # TOOLS
