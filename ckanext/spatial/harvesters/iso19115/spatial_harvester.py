@@ -192,7 +192,12 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
         if isinstance(val, unicode):
             return val
         elif isinstance(val, str):
-            return val#.decode().encode('utf-8','ignore')
+            try:
+                import json
+                # if we can parse
+                return json.loads(val)
+            except Exception as e:
+                return json.dumps(val)#.decode().encode('utf-8','ignore')
         else:
             return val
 
@@ -872,16 +877,17 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
 
         ###################
 
+        # TODO doublecheck when to .add()
+        # Flag this object as the current one
+        harvest_object.current = True
+        harvest_object.add()
+
+
         # The default package schema does not like Upper case tags
         tag_schema = logic.schema.default_tags_schema()
         tag_schema['name'] = [not_empty, six.text_type]
         try:
             if status == 'new':
-
-                # TODO doublecheck when to .add()
-                # Flag this object as the current one
-                harvest_object.current = True
-                harvest_object.add()
 
                 # package_schema['tags'] = tag_schema
                 return self._new(context, log, harvest_object, package_dict)
@@ -894,11 +900,6 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
                 context['schema'] = package_schema
 
                 if status == 'change':
-
-                    # TODO doublecheck when to .add()
-                    # Flag this object as the current one
-                    harvest_object.current = True
-                    harvest_object.add()
                     
                     # TODO restore if deleted
                     if harvest_object.package and harvest_object.package.state=='deleted':
@@ -927,10 +928,12 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
         except p.toolkit.ValidationError as e:
             log.error('Error: {} unchanged, skipping...'.format(str(e)))
             self._save_object_error('Error: %s' % six.text_type(e.error_summary), harvest_object, 'Import')
+            model.Session.rollback()
+            model.Session.close()
             return False 
-
-        model.Session.commit()
-        return True
+        else:
+            model.Session.commit()
+            return True
 
     def _set_guid(self, harvest_object, iso_guid):
         import uuid
@@ -1087,16 +1090,43 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
                         scheming_field = s['field_name']
 
                         # TODO check for complex types
-                        if isinstance(scheming_field, str):
-                            matching = []
+                        if isinstance(scheming_field, six.string_types):
                             for extra in list(extras):
+                                key = extra['key']
                                 # if match: extract
-                                if scheming_field == extra['key']:
+                                if scheming_field == key:
+                                    value = extra['value']
+                                    # preset = s.get('preset')
+                                    # if preset and preset.startswith('multiple_'):
+                                    if isinstance(value, six.string_types):
+                                        try:#json.dumps(
+                                            package_dict[key] = json.loads(value)
+                                        except ValueError as ve:
+                                            package_dict[key] = value.decode('utf-8')
+                                    elif isinstance(value, six.binary_type):
+                                        try:
+                                            package_dict[key] = value.decode('utf-8')
+                                        except UnicodeDecodeError:
+                                            # package_dict[key] = json.dumps(json.loads(value))
+                                            # TODO log and report
+                                            pass
+                                    elif isinstance(value, list):
+                                        try:
+                                            package_dict[key] = value
+                                        except ValueError as ve:
+                                            pass
+                                            # TODO log and report
+                                    else:
+                                        # package_dict[key] =str(value)
+                                        if isinstance(value, str):
+                                            try:#json.dumps(
+                                                package_dict[key] = json.loads(value)
+                                            except ValueError as ve:
+                                                package_dict[key] = value
+                                        else:
+                                            package_dict[key] = str(value)
                                     extras.remove(extra)
-                                    try:
-                                        package_dict[extra['key']] = json.loads(extra['value'])
-                                    except ValueError as ve:
-                                        package_dict[extra['key']] = extra['value']
+                                        
                             
         # fallback to default
         else:
@@ -1111,7 +1141,8 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
             package = p.toolkit.get_action('package_create')(context, package_dict)
         except Exception as e:
             log.error('Failed to harvest guid {}: {}'.format(harvest_object.guid, str(e)))
-            model.Session.rollback()
+            # model.Session.rollback()
+            # model.Session.close()
             return False
         else:
             # Save reference to the package on the object

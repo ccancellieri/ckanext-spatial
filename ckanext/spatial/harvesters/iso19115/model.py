@@ -1064,7 +1064,8 @@ class ISO19115Document(MappedXmlDocument):
                 "mdb:identificationInfo/mri:MD_DataIdentification/mri:status/mcc:MD_ProgressCode/text()",
                 "mdb:identificationInfo/srv:SV_ServiceIdentification/mri:status/mcc:MD_ProgressCode/text()",
             ],
-            multiplicity="*",
+            # was 31/10/2021 multiplicity="*",
+            multiplicity="0..1",
         ),
         ISOKeyword(
             name="keywords",
