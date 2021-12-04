@@ -6,18 +6,75 @@ from ckan import plugins as p
 from ckantoolkit import config
 
 from ckan.plugins.core import SingletonPlugin, implements
+from ckanext.spatial.validation import Validators
+from ckanext.spatial.harvesters.iso19115.validators import all_validators
 
 from ckanext.spatial.harvesters.base import SpatialHarvester
+from ckanext.harvest.interfaces import IHarvester
 from ckanext.spatial.interfaces import ISpatialHarvester
+import json
 
 import logging
 log = logging.getLogger(__name__)
+
+
+def guess_standard(content):
+    lowered = content.lower()
+    if '</gmd:MD_Metadata>'.lower() in lowered:
+        return 'iso'
+    if '</gmi:MI_Metadata>'.lower() in lowered:
+        return 'iso'
+    if '</mdb:MD_Metadata>'.lower() in lowered:
+        return 'iso'
+    if '</mdi:MI_Metadata>'.lower() in lowered:
+        return 'iso'
+    if '</metadata>'.lower() in lowered:
+        return 'fgdc'
+    return 'unknown'
+
 
 class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
     '''
     An harvester for ISO19115 metadata
     '''
-    implements(ISpatialHarvester)
+
+    ## IHarvester
+
+    def validate_config(self, source_config):
+        if not source_config:
+            return source_config
+
+        try:
+            source_config_obj = json.loads(source_config)
+
+            if 'validator_profiles' in source_config_obj:
+                if not isinstance(source_config_obj['validator_profiles'], list):
+                    raise ValueError('validator_profiles must be a list')
+
+                # Check if all profiles exist
+                existing_profiles = [v.name for v in all_validators]
+                unknown_profiles = set(source_config_obj['validator_profiles']) - set(existing_profiles)
+
+                if len(unknown_profiles) > 0:
+                    raise ValueError('Unknown validation profile(s): %s' % ','.join(unknown_profiles))
+
+            if 'default_tags' in source_config_obj:
+                if not isinstance(source_config_obj['default_tags'],list):
+                    raise ValueError('default_tags must be a list')
+
+            if 'default_extras' in source_config_obj:
+                if not isinstance(source_config_obj['default_extras'],dict):
+                    raise ValueError('default_extras must be a dictionary')
+
+            for key in ('override_extras', 'clean_tags'):
+                if key in source_config_obj:
+                    if not isinstance(source_config_obj[key],bool):
+                        raise ValueError('%s must be boolean' % key)
+
+        except ValueError as e:
+            raise e
+
+        return source_config
 
     # ISpatialHarvester
 
@@ -69,7 +126,7 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
         # _tree = data_dict['xml_tree']
         _object = data_dict['harvest_object']
         # _dict2 = elem2dict(_tree)
-        
+
         # TODO delegate
         # self.source_config = context['config']
         try:
@@ -134,7 +191,7 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
 ### TODO provide PR to master and remove
 
     # TODO removeme
-    # We are extending concrete class SpatialHarvester 
+    # We are extending concrete class SpatialHarvester
     # to delegate some of the self.... methods below
     # this imply beeing a IHarvester as well....
     # Once removed below functions no need to extend anymore
@@ -392,6 +449,41 @@ class ISO19115SpatialHarvester(SpatialHarvester, SingletonPlugin):
 
         return package_dict
 
+    def _get_validator(self):
+        '''
+        Returns the validator object using the relevant profiles
+
+        The profiles to be used are assigned in the following order:
+
+        1. 'validator_profiles' property of the harvest source config object
+        2. 'ckan.spatial.validator.profiles' configuration option in the ini file
+        3. Default value as defined in DEFAULT_VALIDATOR_PROFILES
+        '''
+        if not hasattr(self, '_validator'):
+            if hasattr(self, 'source_config') and self.source_config.get('validator_profiles', None):
+                profiles = self.source_config.get('validator_profiles')
+            elif config.get('ckan.spatial.validator.profiles', None):
+                profiles = [
+                    x.strip() for x in
+                    config.get('ckan.spatial.validator.profiles').split(',')
+                ]
+            else:
+                profiles = DEFAULT_VALIDATOR_PROFILES
+            self._validator = Validators(profiles=profiles)
+
+            for validator in all_validators:
+                self._validator.add_validator(validator)
+
+            # Add any custom validators from extensions
+            for plugin_with_validators in p.PluginImplementations(ISpatialHarvester):
+                custom_validators = plugin_with_validators.get_validators()
+                for custom_validator in custom_validators:
+                    if custom_validator not in all_validators:
+                        self._validator.add_validator(custom_validator)
+
+        return self._validator
+
+
 def _guess_resource_format(url, use_mimetypes=True):
     '''
 
@@ -466,7 +558,7 @@ def elem2dict(node):
             value = elem2dict(element)
         if key in result:
 
-            
+
             if type(result[key]) is list:
                 result[key].append(value)
             else:
