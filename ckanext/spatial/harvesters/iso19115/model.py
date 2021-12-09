@@ -2,10 +2,8 @@ from lxml import etree
 from owslib.util import element_to_string
 import six
 import json
-import copy
 import datetime
 import re
-from ckanext.spatial.model.harvested_metadata import MappedXmlElement, MappedXmlDocument
 
 import logging
 log = logging.getLogger(__name__)
@@ -18,6 +16,139 @@ def _encode(element):
         return element.encode('utf-8')
     else:
         return str(element)
+
+class MappedXmlObject(object):
+    elements = []
+
+class MappedXmlDocument(MappedXmlObject):
+    def __init__(self, xml_str=None, xml_tree=None):
+        assert (xml_str or xml_tree is not None), 'Must provide some XML in one format or another'
+        self.xml_str = xml_str
+        self.xml_tree = xml_tree
+
+    def read_values(self):
+        '''For all of the elements listed, finds the values of them in the
+        XML and returns them.'''
+        values = {}
+        tree = self.get_xml_tree()
+        for element in self.elements:
+            values[element.name] = element.read_value(tree)
+        self.infer_values(values)
+        return values
+
+    def read_value(self, name):
+        '''For the given element name, find the value in the XML and return
+        it.
+        '''
+        tree = self.get_xml_tree()
+        for element in self.elements:
+            if element.name == name:
+                return element.read_value(tree)
+        raise KeyError
+
+    def get_xml_tree(self):
+        if self.xml_tree is None:
+            parser = etree.XMLParser(remove_blank_text=True)
+            xml_str = six.ensure_str(self.xml_str)
+            self.xml_tree = etree.fromstring(xml_str, parser=parser)
+        return self.xml_tree
+
+    def infer_values(self, values):
+        pass
+
+
+class MappedXmlElement(MappedXmlObject):
+    namespaces = {}
+
+    def __init__(self, name, search_paths=[], multiplicity="*", elements=[]):
+        self.name = name
+        self.search_paths = search_paths
+        self.multiplicity = multiplicity
+        self.elements = elements or self.elements
+
+    def read_value(self, tree):
+        values = []
+        for xpath in self.get_search_paths():
+            elements = self.get_elements(tree, xpath)
+            values = self.get_values(elements)
+            if values:
+                break
+        return self.fix_multiplicity(values)
+
+    def get_search_paths(self):
+        if type(self.search_paths) != type([]):
+            search_paths = [self.search_paths]
+        else:
+            search_paths = self.search_paths
+        return search_paths
+
+    def get_elements(self, tree, xpath):
+        return tree.xpath(xpath, namespaces=self.namespaces)
+
+    def get_values(self, elements):
+        values = []
+        if len(elements) == 0:
+            pass
+        else:
+            for element in elements:
+                value = self.get_value(element)
+                values.append(value)
+        return values
+
+    def get_value(self, element):
+        if self.elements:
+            value = {}
+            for child in self.elements:
+                value[child.name] = child.read_value(element)
+            return value
+        elif type(element) == etree._ElementStringResult:
+            value = str(element)
+        elif type(element) == etree._ElementUnicodeResult:
+            value = str(element)
+        else:
+            value = self.element_tostring(element)
+        return value
+
+    def element_tostring(self, element):
+        return etree.tostring(element, pretty_print=False)
+
+    def fix_multiplicity(self, values):
+        '''
+        When a field contains multiple values, yet the spec says
+        it should contain only one, then return just the first value,
+        rather than a list.
+
+        In the ISO19115 specification, multiplicity relates to:
+        * 'Association Cardinality'
+        * 'Obligation/Condition' & 'Maximum Occurence'
+        '''
+        if self.multiplicity == "0":
+            # 0 = None
+            if values:
+                log.warn("Values found for element '%s' when multiplicity should be 0: %s",  self.name, values)
+            return ""
+        elif self.multiplicity == "1":
+            # 1 = Mandatory, maximum 1 = Exactly one
+            if not values:
+                log.warn("Value not found for element '%s'" % self.name)
+                return ''
+            return values[0]
+        elif self.multiplicity == "*":
+            # * = 0..* = zero or more
+            return values
+        elif self.multiplicity == "0..1":
+            # 0..1 = Mandatory, maximum 1 = optional (zero or one)
+            if values:
+                return values[0]
+            else:
+                return ""
+        elif self.multiplicity == "1..*":
+            # 1..* = one or more
+            return values
+        else:
+            log.warning('Multiplicity not specified for element: %s',
+                        self.name)
+            return values
 
 
 class ISOElement(MappedXmlElement):
@@ -46,7 +177,7 @@ class ISOElement(MappedXmlElement):
         "mcc": "http://standards.iso.org/iso/19115/-3/mcc/1.0",
         "mco": "http://standards.iso.org/iso/19115/-3/mco/1.0",
         "mdb": "http://standards.iso.org/iso/19115/-3/mdb/2.0",
-        # "mdq": "http://standards.iso.org/iso/19157/-2/mdq/1.0",
+        "mdq": "http://standards.iso.org/iso/19157/-2/mdq/1.0",
         "mds": "http://standards.iso.org/iso/19115/-3/mds/2.0",
         "mmi": "http://standards.iso.org/iso/19115/-3/mmi/1.0",
         # "mpc": "http://standards.iso.org/iso/19115/-3/mpc/1.0",
@@ -396,7 +527,7 @@ class ISOKeyword(ISOElement):
 
     elements = [
         ISOLocalised(
-            name="keyword",
+            name="keywords",
             search_paths=[
                 "mri:keyword",
             ],
@@ -693,83 +824,6 @@ class ISOCitation(ISOElement):
         ),
     ]
 
-    def infer_values(self, values):
-        self.infer_citation(values)
-        return values
-
-    def infer_citation(self, values):
-        if 'citation' not in values or not values['citation']:
-            return
-        value = values['citation'][0]
-        if len(value['issued']):
-            dates = value['issued']
-            if isinstance(dates[0], str):
-                dates.sort(reverse=True)
-            else:  # it's an object
-                dates = sorted(dates, key=lambda k: k['value'], reverse=True)
-            issued_date = str(dates[0]['value'])
-            value['issued'] = [{"date-parts": [issued_date[:4], issued_date[5:7], issued_date[8:10]]}]
-        value['id'] = calculate_identifier(value['id'])
-
-        # remove duplicate entries
-        author_list = [
-            {"individual-name": x['individual-name'],
-             "organisation-name": x['organisation-name'],
-             } for x in value['author']]
-        author_list = [i for n, i in enumerate(author_list) if i not in author_list[n + 1:]]
-
-        # clear author list
-        value['author'] = []
-
-        for author in author_list:
-            ind = author.get('individual-name')
-            org = author.get('organisation-name')
-            if ind:
-                name_list = ind.split()
-                value['author'].append({
-                    "given": ' '.join(name_list[0:-1]),
-                    "family": name_list[-1]
-                })
-            else:
-                value['author'].append({"literal": org})
-
-        defaultLangKey = cleanLangKey(values.get('metadata-language', 'en'))
-        value['title'] = local_to_dict(value['title'], defaultLangKey)
-        value['abstract'] = local_to_dict(value['abstract'], defaultLangKey)
-
-        identifier = values.get('unique-resource-identifier-full', {})
-        if identifier:
-            doi = calculate_identifier(identifier)
-            doi = re.sub(r'^http.*doi\.org/', '', doi, flags=re.IGNORECASE)  # strip https://doi.org/ and the like
-            if doi and re.match(r'^10.\d{4,9}\/[-._;()/:A-Z0-9]+$', doi, re.IGNORECASE):
-                value['DOI'] = doi
-        # TODO: could we have more then one doi?
-        import ckan.lib.munge as munge
-        from ckan.lib.helpers import url_for
-        field = {}
-        for lang in ['fr', 'en']:
-            field[lang] = copy(value)
-            title = field[lang]['title']
-            field[lang]['title'] = title.get(lang)
-            abstract = field[lang]['abstract']
-            field[lang]['abstract'] = abstract.get(lang)
-            field[lang]['language'] = lang
-            field[lang]['URL'] = url_for(
-                controller='dataset',
-                action='read',
-                id=munge.munge_name(values.get('guid', '')),
-                local=lang,
-                qualified=True
-            )
-            field[lang] = json.dumps([field[lang]])
-            # the dump converts utf-8 escape sequences to unicode escape
-            # sequences so we have to convert back again
-            # if(field[lang] and re.search(r'\\u[0-9a-fA-F]{4}', field[lang])):
-            #     field[lang] = field[lang].decode("raw_unicode_escape")
-            # double escape any double quotes that are already escaped
-            field[lang] = field[lang].replace('\"', '\\"')
-        values['citation'] = json.dumps(field)
-
 
 class ISO19115Document(MappedXmlDocument):
 
@@ -1056,9 +1110,9 @@ class ISO19115Document(MappedXmlDocument):
             name="aggregation-info",
             search_paths=[
                 "mdb:identificationInfo/mri:MD_DataIdentification/mri:associatedResource/mri:MD_AssociatedResource",
-                "mdb:identificationInfo/srv:SV_ServiceIdentification/srv::associatedResource/mri:MD_AssociatedResource"
+                "mdb:identificationInfo/srv:SV_ServiceIdentification/srv:associatedResource/mri:MD_AssociatedResource",
             ],
-            multiplicity="*"
+            multiplicity="*",
         ),
         ISOElement(
             name="spatial-data-service-type",
@@ -1256,7 +1310,7 @@ class ISO19115Document(MappedXmlDocument):
             search_paths=[
                 "mdb:resourceLineage/mrl:LI_Lineage"
             ],
-            multiplicity="0..*",
+            multiplicity="*",
         ),
         ISOBrowseGraphic(
             name="browse-graphic",
@@ -1307,20 +1361,115 @@ class ISO19115Document(MappedXmlDocument):
         self.infer_contact(values)
         self.infer_contact_email(values)
 
-        # ISO19139-3
+        import ckan.plugins.toolkit as toolkit
+        schemas = toolkit.h.scheming_dataset_schemas()
+        schema_field_names = []
+        if schemas:
+            for key, value in schemas.items():
+                for field in value['dataset_fields']:
+                    schema_field_names.append(field['field_name'])
+
         self.clean_metadata_reference_date(values)
         self.clean_dataset_reference_date(values)
         self.infer_metadata_date(values)
-        self.infer_spatial(values)
-        self.infer_metadata_language(values)
+
+        if 'spatial' in schema_field_names:
+            self.infer_spatial(values)
+
+        if 'metadata-language' in schema_field_names:
+            self.infer_metadata_language(values)
+
+        if 'keywords' in schema_field_names:
+            self.infer_keywords(values)
+
         self.infer_multilingual(values)
         self.infer_guid(values)
-        self.infer_temporal_vertical_extent(values)
 
-        # self.infer_citation(values)
+        if ('temporal-extent' in schema_field_names or
+            'vertical-extent' in schema_field_names):
+            self.infer_temporal_vertical_extent(values)
+
+        if 'citation' in schema_field_names:
+            self.infer_citation(values)
         # self.drop_empty_objects(values)
 
         return values
+
+    # TODO make citation field more generic and configurable so others can use it
+    def infer_citation(self, values):
+        import ckan.lib.munge as munge
+        from ckan.lib.helpers import url_for
+        from copy import copy
+
+        if 'citation' not in values or not values['citation']:
+            return
+        value = values['citation'][0]
+        if len(value['issued']):
+            dates = value['issued']
+            if isinstance(dates[0], str):
+                dates.sort(reverse=True)
+            else:  # it's an object
+                dates = sorted(dates, key=lambda k: k['value'], reverse=True)
+            issued_date = str(dates[0]['value'])
+            value['issued'] = [{"date-parts": [issued_date[:4], issued_date[5:7], issued_date[8:10]]}]
+        value['id'] = calculate_identifier(value['id'])
+
+        # remove duplicate entries
+        author_list = [
+            {"individual-name": x['individual-name'],
+             "organisation-name": x['organisation-name'],
+             } for x in value['author']]
+        author_list = [i for n, i in enumerate(author_list) if i not in author_list[n + 1:]]
+
+        # clear author list
+        value['author'] = []
+
+        for author in author_list:
+            ind = author.get('individual-name')
+            org = author.get('organisation-name')
+            if ind:
+                name_list = ind.split()
+                value['author'].append({
+                    "given": ' '.join(name_list[0:-1]),
+                    "family": name_list[-1]
+                })
+            else:
+                value['author'].append({"literal": org})
+
+        defaultLangKey = cleanLangKey(values.get('metadata-language', 'en'))
+        value['title'] = local_to_dict(value['title'], defaultLangKey)
+        value['abstract'] = local_to_dict(value['abstract'], defaultLangKey)
+
+        identifier = values.get('unique-resource-identifier-full', {})
+        if identifier:
+            doi = calculate_identifier(identifier)
+            doi = re.sub(r'^http.*doi\.org/', '', doi, flags=re.IGNORECASE)  # strip https://doi.org/ and the like
+            if doi and re.match(r'^10.\d{4,9}\/[-._;()/:A-Z0-9]+$', doi, re.IGNORECASE):
+                value['DOI'] = doi
+        # TODO: could we have more then one doi?
+        field = {}
+        for lang in ['fr', 'en']:
+            field[lang] = copy(value)
+            title = field[lang]['title']
+            field[lang]['title'] = title.get(lang)
+            abstract = field[lang]['abstract']
+            field[lang]['abstract'] = abstract.get(lang)
+            field[lang]['language'] = lang
+            field[lang]['URL'] = url_for(
+                controller='dataset',
+                action='read',
+                id=munge.munge_name(values.get('guid', '')),
+                local=lang,
+                qualified=True
+            )
+            field[lang] = json.dumps([field[lang]])
+            # the dump converts utf-8 escape sequences to unicode escape
+            # sequences so we have to convert back again
+            # if(field[lang] and re.search(r'\\u[0-9a-fA-F]{4}', field[lang])):
+            #     field[lang] = field[lang].decode("raw_unicode_escape")
+            # double escape any double quotes that are already escaped
+            field[lang] = field[lang].replace('\"', '\\"')
+        values['citation'] = json.dumps(field)
 
     def clean_metadata_reference_date(self, values):
         dates = []
@@ -1402,6 +1551,30 @@ class ISO19115Document(MappedXmlDocument):
         # is common in the iso standard
         if values.get('metadata-language'):
             values['metadata-language'] = values['metadata-language'][:2].lower()
+
+    def infer_keywords(self, values):
+        keywords = values['keywords']
+
+        defaultLangKey = cleanLangKey(values.get('metadata-language', 'en'))
+
+        value = []
+        if isinstance(keywords, list):
+            for klist in keywords:
+                ktype = klist.get('type')
+                for item in klist.get('keywords', []):
+                    LangDict = local_to_dict(item, defaultLangKey)
+                    value.append({
+                        'keyword': json.dumps(LangDict),
+                        'type': ktype
+                    })
+        else:
+            for item in keywords:
+                LangDict = local_to_dict(item, defaultLangKey)
+                value.append({
+                    'keyword': json.dumps(LangDict),
+                    'type': item.get('type')
+                })
+        values['keywords'] = value
 
     def infer_multilingual(self, values):
         for key in values:
@@ -1502,17 +1675,21 @@ class ISO19115Document(MappedXmlDocument):
             blist = [x.get('begin') for x in te]
             elist = [x.get('end') for x in te]
             try:
-                value['begin'] = iso_date_time_to_utc(min(blist))[:10]
+                value['begin'] = self.iso_date_time_to_utc(min(blist))[:10]
                 if max(elist):  # end is blank for datasets with ongoing collection
-                    value['end'] = iso_date_time_to_utc(max(elist))[:10]
+                    value['end'] = self.iso_date_time_to_utc(max(elist))[:10]
             except Exception as e:
                 value['begin'] = min(blist)[:10]
                 if max(elist):
                     value['end'] = max(elist)[:10]
-                log.warn('Problem converting temporal-extent dates to utc format. Defaulting to %s and %s instead', value.get('begin', ''), value.get('end', ''))
+                log.warn(('Problem converting temporal-extent dates to utc format. '
+                         'Defaulting to %s and %s instead', value.get('begin', ''), value.get('end', '')))
 
-            values['temporal-extent-begin'] = value['begin']
-            values['temporal-extent-end'] = value['end']
+            values['temporal-extent'] = value
+            if value.get('begin'):
+                values['temporal-extent-begin'] = value['begin']
+            if value.get('end'):
+                values['temporal-extent-end'] = value['end']
 
         value = {}
         te = values.get('vertical-extent', [])

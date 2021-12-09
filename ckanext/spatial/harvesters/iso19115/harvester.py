@@ -146,7 +146,7 @@ class ISO19115Harvester(CSWHarvester, SingletonPlugin):
         # #########################################################################
 
         # return self._csw.gather_stage(harvest_job)
-        
+
     # overriding waiting for merge #258
     # From parent CSWHarvester
     def fetch_stage(self,harvest_object):
@@ -294,7 +294,7 @@ class ISO19115Harvester(CSWHarvester, SingletonPlugin):
 
         ###################
         # TODO guess the 'right' ISpatialHarvester
-        
+
         # Validate ISO document
         is_valid, _status, _plugin, _validator = self._validate(harvest_object)
         if not is_valid:
@@ -307,7 +307,7 @@ class ISO19115Harvester(CSWHarvester, SingletonPlugin):
                     and \
                     not p.toolkit.asbool(config.get('ckanext.spatial.harvest.continue_on_validation_errors', False)):
                 return False
-        # Build the package dict    
+        # Build the package dict
         package_dict = None
         if not _plugin:
             # if not spatial_plugins:
@@ -315,7 +315,7 @@ class ISO19115Harvester(CSWHarvester, SingletonPlugin):
                 'fallback to default iso19139 implementation')
 
             csw_harvester = p.get_plugin('csw_harvester')
-            
+
             # fallback to default parent implementation
                 # TODO rise a ticket: unable to extend CSWHarvester
                 # super.get_package_dict(iso_values, harvest_object)
@@ -353,7 +353,7 @@ class ISO19115Harvester(CSWHarvester, SingletonPlugin):
                 self._save_object_error('Error parsing ISO document for object {0}: {1}'.format(harvest_object.id, six.text_type(e)),
                                         harvest_object, 'Import')
                 return False
-            
+
             package_dict = _plugin.get_package_dict(context, {
                 'package_dict': package_dict,
                 'iso_values': parsed_values,
@@ -367,14 +367,14 @@ class ISO19115Harvester(CSWHarvester, SingletonPlugin):
         if not package_dict:
             log.error('No package dict returned, aborting import for object {0}'.format(harvest_object.id))
             return False
-        
+
 
         ###################
 
         # Update GUID with the one on the document
         iso_guid = parsed_values.get('guid')
         self._set_guid(harvest_object, iso_guid)
-        
+
         # Get document modified date
         metadata_date = parsed_values.get('metadata-date')
         if metadata_date:
@@ -390,7 +390,7 @@ class ISO19115Harvester(CSWHarvester, SingletonPlugin):
             #TODO log warn!
             harvest_object.metadata_modified_date = datetime.datetime.today()
 
-        
+
         # TODO doublecheck when to .add()
         # Flag this object as the current one
         harvest_object.current = True
@@ -413,7 +413,7 @@ class ISO19115Harvester(CSWHarvester, SingletonPlugin):
                 if not self.force_import \
                         and previous_object and \
                         harvest_object.metadata_modified_date <= previous_object.metadata_modified_date:
-                    
+
                     # Assign the previous job id to the new object to
                     # avoid losing history
                     harvest_object.harvest_job_id = previous_object.job.id
@@ -423,7 +423,7 @@ class ISO19115Harvester(CSWHarvester, SingletonPlugin):
 
                     self._change(context, log, harvest_object, package_schema, package_dict)
                 else:
-                    
+
                     package_dict['id'] = harvest_object.package_id
 
                     package_id = p.toolkit.get_action('package_update')(context, package_dict)
@@ -431,13 +431,13 @@ class ISO19115Harvester(CSWHarvester, SingletonPlugin):
 
         except p.toolkit.ValidationError as e:
             self._save_object_error('Validation Error: %s' % six.text_type(e.error_summary), harvest_object, 'Import')
-            return False 
+            return False
 
         model.Session.commit()
 
         return True
 
-    
+
     def _set_guid(self, harvest_object, iso_guid):
         import uuid
         import hashlib
@@ -469,7 +469,7 @@ class ISO19115Harvester(CSWHarvester, SingletonPlugin):
             if True some validator has passed (first win)
              in that case also the plugin is passed
              (True, status[plugin_name]['errors'], plugin, validator)
-            if False the plugin name is false and a report 
+            if False the plugin name is false and a report
              can be located under:
              status[plugin_name]['errors']
         '''
@@ -477,7 +477,7 @@ class ISO19115Harvester(CSWHarvester, SingletonPlugin):
         is_valid = False
         status = {}
         for plugin in p.PluginImplementations(ISpatialHarvester):
-            
+
             # TODO priority / preferences / order (let's define harvester options to use into get_validators())?
             for validator in plugin.get_validators():
                 # TODO this assume document as xml, we can do better... (using csw outputformat)
@@ -493,14 +493,14 @@ class ISO19115Harvester(CSWHarvester, SingletonPlugin):
                     # class XsdValidator(BaseValidator):
                     # '''Base class for validators that use an XSD schema.'''
                     # @classmethod
-                    # def _is_valid(cls, xml, xsd_filepath, xsd_name):                
+                    # def _is_valid(cls, xml, xsd_filepath, xsd_name):
                     # Returns:
                     #   (is_valid, [(error_message_string, error_line_number)])
                     # which instead (as is currently used) should be:
                     #   (is_valid, [(error_line_number, error_message_string)])
 
                     # if csw outputformat application/xml
-                    
+
                     document_string = re.sub('<\?xml(.*)\?>', '', harvest_object.content)
                     try:
                         _xml = etree.fromstring(document_string)
@@ -517,11 +517,11 @@ class ISO19115Harvester(CSWHarvester, SingletonPlugin):
 
                 # accumulate errors by (profile and plugin)
                 status.update({plugin_name:{'status':is_valid, 'validator':validator.name, 'errors':_errors}})
-                
+
                 # The first win, order policy matter!
                 if is_valid:
                     return is_valid, status, plugin, validator
-                    
+
                 # continue iterating to guess the right profile
 
         return is_valid, status, None, None
@@ -559,7 +559,7 @@ class ISO19115Harvester(CSWHarvester, SingletonPlugin):
                     PackageSearchIndex().index_package(package_dict)
 
         log.info('Document with GUID %s unchanged, skipping...' % (harvest_object.guid))
-        
+
     def _new(self, context, log, harvest_object, package_schema, package_dict):
 
         # We need to explicitly provide a package ID, otherwise ckanext-spatial
@@ -576,8 +576,6 @@ class ISO19115Harvester(CSWHarvester, SingletonPlugin):
         # plugin)
         model.Session.execute('SET CONSTRAINTS harvest_object_package_id_fkey DEFERRED')
         model.Session.flush()
-        
+
         package_id = p.toolkit.get_action('package_create')(context, package_dict)
         log.info('Created new package %s with guid %s', package_id, harvest_object.guid)
-    
-
