@@ -1,6 +1,6 @@
 import pytest
 
-from shapely.geometry import asShape
+import shapely.geometry
 
 from ckan.model import Session
 from ckan.lib.helpers import json
@@ -21,7 +21,7 @@ class TestPackageExtent(SpatialTestBase):
 
         geojson = json.loads(self.geojson_examples["point"])
 
-        shape = asShape(geojson)
+        shape = shapely.geometry.shape(geojson)
         package_extent = PackageExtent(
             package_id=package["id"],
             the_geom=WKTElement(shape.wkt, self.db_srid),
@@ -60,7 +60,7 @@ class TestPackageExtent(SpatialTestBase):
 
         geojson = json.loads(self.geojson_examples["point"])
 
-        shape = asShape(geojson)
+        shape = shapely.geometry.shape(geojson)
         package_extent = PackageExtent(
             package_id=package["id"],
             the_geom=WKTElement(shape.wkt, self.db_srid),
@@ -84,7 +84,7 @@ class TestPackageExtent(SpatialTestBase):
         # Update the geometry (Point -> Polygon)
         geojson = json.loads(self.geojson_examples["polygon"])
 
-        shape = asShape(geojson)
+        shape = shapely.geometry.shape(geojson)
         package_extent.the_geom = WKTElement(shape.wkt, self.db_srid)
         package_extent.save()
 
@@ -105,4 +105,3 @@ class TestPackageExtent(SpatialTestBase):
                 "ST_Polygon"
             )
             assert(package_extent.the_geom.srid == self.db_srid)
-

@@ -362,8 +362,7 @@ class SpatialHarvester(HarvesterBase):
                     extent_string = Template('{"type": "Point", "coordinates": [$x, $y]}').substitute(
                         x=xmin, y=ymin
                     )
-                    self._save_object_error('Point extent defined instead of polygon',
-                                     harvest_object, 'Import')
+                    log.warn('Point extent defined as a polygon, extent has been converted to geomitry of type point.')
                 else:
                     extent_string = self.extent_template.substitute(
                         xmin=xmin, ymin=ymin, xmax=xmax, ymax=ymax
@@ -434,6 +433,9 @@ class SpatialHarvester(HarvesterBase):
         '''
         self.__base_transform_to_iso_called = True
         return None
+
+    def parse_iso_document(self, content):
+        return ISODocument(content)
 
     def import_stage(self, harvest_object):
         context = {
@@ -508,8 +510,7 @@ class SpatialHarvester(HarvesterBase):
 
         # Parse ISO document
         try:
-
-            iso_parser = ISODocument(harvest_object.content)
+            iso_parser = self.parse_iso_document(harvest_object.content)
             iso_values = iso_parser.read_values()
         except Exception as e:
             self._save_object_error('Error parsing ISO document for object {0}: {1}'.format(harvest_object.id, six.text_type(e)),
